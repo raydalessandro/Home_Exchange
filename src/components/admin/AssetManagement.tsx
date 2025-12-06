@@ -1,0 +1,135 @@
+'use client'
+
+import { useState } from 'react'
+import { useStore } from '@/store'
+import { Card, CardHeader } from '@/components/shared/Card'
+import { Button } from '@/components/shared/Button'
+import { Palette, Plus, Trash2, Lock, Flame } from 'lucide-react'
+
+export function AssetManagement() {
+  const assets = useStore(state => state.assets)
+  const addAsset = useStore(state => state.addAsset)
+  const removeAsset = useStore(state => state.removeAsset)
+  
+  const [form, setForm] = useState({
+    name: '',
+    emoji: '',
+    description: '',
+    price: '',
+    persistent: true,
+  })
+
+  const handleAddAsset = () => {
+    const price = parseInt(form.price)
+    if (form.name && form.emoji && price > 0) {
+      addAsset({
+        name: form.name,
+        emoji: form.emoji,
+        description: form.description || form.name,
+        price,
+        basePrice: price,
+        persistent: form.persistent,
+      })
+      setForm({ name: '', emoji: '', description: '', price: '', persistent: true })
+    }
+  }
+
+  const handleRemoveAsset = (assetId: string) => {
+    if (confirm('Eliminare questo asset?')) {
+      removeAsset(assetId)
+    }
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <CardHeader title="Gestione Asset" icon={<Palette size={20} />} />
+      
+      <Card variant="dark">
+        {/* Add Asset Form */}
+        <div className="space-y-3 mb-5 sm:mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Nome Asset"
+              className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm"
+            />
+            <input
+              type="text"
+              value={form.emoji}
+              onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))}
+              placeholder="Emoji (es: 🎯)"
+              className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm"
+            />
+          </div>
+          <textarea
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Descrizione"
+            rows={2}
+            className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm resize-none"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              value={form.price}
+              onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+              placeholder="Prezzo"
+              min="1"
+              className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm font-mono"
+            />
+            <label className="flex items-center gap-2 cursor-pointer px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl">
+              <input
+                type="checkbox"
+                checked={form.persistent}
+                onChange={e => setForm(f => ({ ...f, persistent: e.target.checked }))}
+                className="w-4 h-4 rounded border-ink-500 text-gold focus:ring-gold"
+              />
+              <span className="text-sm text-cream/70 flex items-center gap-1">
+                <Lock size={14} />
+                Persistente
+              </span>
+            </label>
+          </div>
+          <Button variant="success" onClick={handleAddAsset} fullWidth icon={Plus}>
+            Aggiungi Asset
+          </Button>
+        </div>
+
+        {/* Asset List */}
+        <div>
+          <h3 className="text-sm font-medium text-cream/60 mb-2">Asset Esistenti:</h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto scrollbar-thin">
+            {Object.values(assets).map(asset => (
+              <div
+                key={asset.id}
+                className="flex items-center justify-between p-3 
+                           bg-ink-700/50 rounded-xl border border-ink-600"
+              >
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="text-xl sm:text-2xl">{asset.emoji}</span>
+                  <div>
+                    <span className="font-medium text-cream text-sm sm:text-base">{asset.name}</span>
+                    <span className="text-gold ml-2 font-mono text-sm">🪙{asset.price}</span>
+                  </div>
+                  <span className="text-cream/40">
+                    {asset.persistent ? <Lock size={14} /> : <Flame size={14} />}
+                  </span>
+                </div>
+                <Button
+                  variant="danger"
+                  size="xs"
+                  onClick={() => handleRemoveAsset(asset.id)}
+                  icon={Trash2}
+                >
+                  <span className="hidden sm:inline">Elimina</span>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
