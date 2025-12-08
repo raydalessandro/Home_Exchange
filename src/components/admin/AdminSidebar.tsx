@@ -76,7 +76,7 @@ export function AdminSidebar() {
       {/* Footer info */}
       <div className="p-4 border-t border-gold/10 text-xs text-cream/40">
         <div className="font-medium">Casa Exchange</div>
-        <div className="mt-0.5 opacity-70">v0.3 • Admin</div>
+        <div className="mt-0.5 opacity-70">v0.6 • Admin</div>
       </div>
     </aside>
   )

@@ -78,7 +78,7 @@ export function LoginView() {
 
         {/* Footer */}
         <p className="text-center text-ink-400/60 text-xs sm:text-sm mt-6 sm:mt-10 tracking-wide">
-          Borsa Domestica Educativa • v0.3.0
+          Borsa Domestica Educativa • v0.6.0
         </p>
       </div>
     </div>

@@ -95,6 +95,8 @@ interface MobileNavItem {
 const mobileNavItems: MobileNavItem[] = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'tokens', icon: Ticket, label: 'Gettoni' },
+  { id: 'assets', icon: Palette, label: 'Asset' },
+  { id: 'players', icon: Users, label: 'Giocatori' },
   { id: 'calendar', icon: Calendar, label: 'Calendario' },
   { id: 'inactivity', icon: AlertTriangle, label: 'Inattività' },
   { id: 'market', icon: Settings, label: 'Market' },
