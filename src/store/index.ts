@@ -893,6 +893,376 @@ export const useStore = create<Store>()(
         get().showToast({ message: label, type: event === 'WORK_BOOM' ? 'success' : 'warning' })
       },
 
+      // ==================== CALENDAR MODULE ====================
+
+      createBooking: (params) => {
+        const state = get()
+        const currentUser = state.currentUser
+        
+        if (!currentUser) {
+          state.showToast({ message: 'Devi essere loggato', type: 'error' })
+          return
+        }
+
+        // Trova i nomi dei collaboratori
+        const collaboratorNames = (params.collaboratorIds || []).map(id => {
+          const player = state.players.find(p => p.id === id)
+          return player?.name || 'Sconosciuto'
+        })
+
+        const booking = {
+          id: uuidv4(),
+          templateId: params.templateId,
+          categoryId: params.categoryId,
+          templateName: params.templateName,
+          templateEmoji: params.templateEmoji,
+          baseValue: params.baseValue,
+          bookedBy: currentUser.id,
+          bookedByName: currentUser.name,
+          scheduledDate: params.scheduledDate,
+          scheduledTime: params.scheduledTime,
+          status: 'BOOKED' as const,
+          collaborators: params.collaboratorIds || [],
+          collaboratorNames,
+          createdAt: Date.now(),
+          p2pTransfers: [],
+        }
+
+        set(state => {
+          state.bookings.push(booking)
+          state.lastUpdated = Date.now()
+        })
+
+        const collabText = collaboratorNames.length > 0 
+          ? ` con ${collaboratorNames.join(', ')}` 
+          : ''
+        
+        get().logEvent(
+          'BOOKING_CREATED',
+          `📅 ${currentUser.name} ha prenotato ${params.templateEmoji} ${params.templateName} per ${params.scheduledDate}${collabText}`,
+          { bookingId: booking.id }
+        )
+        
+        get().showToast({ message: 'Prenotazione creata!', type: 'success' })
+      },
+
+      markBookingDone: (bookingId: string) => {
+        const state = get()
+        const currentUser = state.currentUser
+        const booking = state.bookings.find(b => b.id === bookingId)
+
+        if (!currentUser || !booking) {
+          state.showToast({ message: 'Prenotazione non trovata', type: 'error' })
+          return
+        }
+
+        const canMark = booking.bookedBy === currentUser.id || 
+                        booking.collaborators.includes(currentUser.id)
+        
+        if (!canMark) {
+          state.showToast({ message: 'Non sei autorizzato', type: 'error' })
+          return
+        }
+
+        if (booking.status !== 'BOOKED') {
+          state.showToast({ message: 'Prenotazione non in stato valido', type: 'error' })
+          return
+        }
+
+        set(state => {
+          const b = state.bookings.find(b => b.id === bookingId)
+          if (b) {
+            b.status = 'MARKED_DONE'
+            b.markedDoneAt = Date.now()
+            b.markedDoneBy = currentUser.id
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'BOOKING_MARKED_DONE',
+          `✅ ${currentUser.name} ha completato ${booking.templateEmoji} ${booking.templateName}`,
+          { bookingId }
+        )
+        
+        get().showToast({ message: 'Segnato come fatto! In attesa di conferma admin.', type: 'success' })
+      },
+
+      confirmBooking: (bookingId: string) => {
+        const state = get()
+        const currentUser = state.currentUser
+        const booking = state.bookings.find(b => b.id === bookingId)
+
+        if (!currentUser?.isAdmin) {
+          state.showToast({ message: 'Solo admin può confermare', type: 'error' })
+          return
+        }
+
+        if (!booking || booking.status !== 'MARKED_DONE') {
+          state.showToast({ message: 'Prenotazione non pronta per conferma', type: 'error' })
+          return
+        }
+
+        // Trova il template per ottenere il valore corrente
+        const category = state.workCategories.find(c => c.id === booking.categoryId)
+        const template = category?.templates.find(t => t.id === booking.templateId)
+        const value = template?.currentValue || booking.baseValue
+
+        // Emetti il gettone a chi ha prenotato
+        get().emitWorkToken({
+          categoryId: booking.categoryId,
+          templateId: booking.templateId,
+          issuedTo: booking.bookedBy,
+          quality: 'BASIC',
+          customName: `${booking.templateName} (Calendario)`,
+          customValue: value,
+        })
+
+        const tokenId = `calendar-${bookingId}`
+
+        set(state => {
+          const b = state.bookings.find(b => b.id === bookingId)
+          if (b) {
+            b.status = 'CONFIRMED'
+            b.confirmedAt = Date.now()
+            b.confirmedBy = currentUser.id
+            b.tokenId = tokenId
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'BOOKING_CONFIRMED',
+          `🎫 Admin ha confermato ${booking.templateEmoji} ${booking.templateName} di ${booking.bookedByName} (+🪙${value})`,
+          { bookingId, value }
+        )
+        
+        get().showToast({ message: `Confermato! Gettone di 🪙${value} emesso.`, type: 'success' })
+      },
+
+      cancelBooking: (bookingId: string) => {
+        const state = get()
+        const currentUser = state.currentUser
+        const booking = state.bookings.find(b => b.id === bookingId)
+
+        if (!currentUser || !booking) {
+          state.showToast({ message: 'Prenotazione non trovata', type: 'error' })
+          return
+        }
+
+        const canCancel = booking.bookedBy === currentUser.id || currentUser.isAdmin
+        
+        if (!canCancel) {
+          state.showToast({ message: 'Non sei autorizzato', type: 'error' })
+          return
+        }
+
+        if (booking.status === 'CONFIRMED' || booking.status === 'CANCELLED') {
+          state.showToast({ message: 'Non puoi cancellare questa prenotazione', type: 'error' })
+          return
+        }
+
+        set(state => {
+          const b = state.bookings.find(b => b.id === bookingId)
+          if (b) {
+            b.status = 'CANCELLED'
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'BOOKING_CANCELLED',
+          `❌ ${currentUser.name} ha cancellato ${booking.templateEmoji} ${booking.templateName}`,
+          { bookingId }
+        )
+        
+        get().showToast({ message: 'Prenotazione cancellata', type: 'info' })
+      },
+
+      payCollaborator: (params) => {
+        const state = get()
+        const currentUser = state.currentUser
+        const booking = state.bookings.find(b => b.id === params.bookingId)
+
+        if (!currentUser || !booking) {
+          state.showToast({ message: 'Prenotazione non trovata', type: 'error' })
+          return
+        }
+
+        if (booking.bookedBy !== currentUser.id) {
+          state.showToast({ message: 'Solo chi ha prenotato può pagare i collaboratori', type: 'error' })
+          return
+        }
+
+        if (booking.status !== 'CONFIRMED') {
+          state.showToast({ message: 'La prenotazione deve essere confermata', type: 'error' })
+          return
+        }
+
+        if (!booking.collaborators.includes(params.toPlayerId)) {
+          state.showToast({ message: 'Questo player non è un collaboratore', type: 'error' })
+          return
+        }
+
+        const fromPlayer = state.players.find(p => p.id === currentUser.id)
+        const toPlayer = state.players.find(p => p.id === params.toPlayerId)
+
+        if (!fromPlayer || !toPlayer) {
+          state.showToast({ message: 'Player non trovato', type: 'error' })
+          return
+        }
+
+        if (fromPlayer.balance < params.amount) {
+          state.showToast({ message: 'Saldo insufficiente', type: 'error' })
+          return
+        }
+
+        const transfer = {
+          id: uuidv4(),
+          from: currentUser.id,
+          fromName: currentUser.name,
+          to: params.toPlayerId,
+          toName: toPlayer.name,
+          amount: params.amount,
+          bookingId: params.bookingId,
+          templateName: booking.templateName,
+          timestamp: Date.now(),
+        }
+
+        set(state => {
+          // Update balances
+          const from = state.players.find(p => p.id === currentUser.id)
+          const to = state.players.find(p => p.id === params.toPlayerId)
+          if (from) from.balance -= params.amount
+          if (to) to.balance += params.amount
+          
+          // Record transfer
+          state.collabTransfers.push(transfer)
+          
+          // Add to booking
+          const b = state.bookings.find(b => b.id === params.bookingId)
+          if (b) {
+            b.p2pTransfers.push(transfer)
+          }
+          
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'COLLAB_PAYMENT',
+          `💸 ${currentUser.name} ha pagato 🪙${params.amount} a ${toPlayer.name} per ${booking.templateEmoji} ${booking.templateName}`,
+          { bookingId: params.bookingId, transfer }
+        )
+        
+        get().showToast({ message: `Pagato 🪙${params.amount} a ${toPlayer.name}!`, type: 'success' })
+      },
+
+      applyInactivityPenalty: (playerId: string, date: string) => {
+        const state = get()
+        const currentUser = state.currentUser
+        const PENALTY_AMOUNT = 5
+
+        if (!currentUser?.isAdmin) {
+          state.showToast({ message: 'Solo admin può applicare penalità', type: 'error' })
+          return
+        }
+
+        const player = state.players.find(p => p.id === playerId)
+        if (!player) {
+          state.showToast({ message: 'Player non trovato', type: 'error' })
+          return
+        }
+
+        // Check if already applied
+        const alreadyApplied = state.inactivityPenalties.some(
+          p => p.playerId === playerId && p.date === date
+        )
+        if (alreadyApplied) {
+          state.showToast({ message: 'Penalità già applicata per questo giorno', type: 'warning' })
+          return
+        }
+
+        const penalty = {
+          id: uuidv4(),
+          playerId,
+          playerName: player.name,
+          date,
+          amount: PENALTY_AMOUNT,
+          appliedAt: Date.now(),
+          appliedBy: currentUser.id,
+          appliedByName: currentUser.name,
+        }
+
+        set(state => {
+          const p = state.players.find(p => p.id === playerId)
+          if (p) p.balance -= PENALTY_AMOUNT
+          state.inactivityPenalties.push(penalty)
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'INACTIVITY_PENALTY',
+          `⚠️ Penalità inattività: ${player.name} -🪙${PENALTY_AMOUNT} per ${date}`,
+          { penalty }
+        )
+        
+        get().showToast({ message: `Penalità di 🪙${PENALTY_AMOUNT} applicata a ${player.name}`, type: 'warning' })
+      },
+
+      getBookingsForDate: (date: string) => {
+        return get().bookings.filter(b => 
+          b.scheduledDate === date && b.status !== 'CANCELLED'
+        )
+      },
+
+      getBookingsForPlayer: (playerId: string) => {
+        return get().bookings.filter(b => 
+          (b.bookedBy === playerId || b.collaborators.includes(playerId)) &&
+          b.status !== 'CANCELLED'
+        )
+      },
+
+      getPendingConfirmations: () => {
+        return get().bookings.filter(b => b.status === 'MARKED_DONE')
+      },
+
+      getInactivityReport: (date: string) => {
+        const state = get()
+        const childPlayers = state.players.filter(p => !p.isBank && !p.isAdmin)
+        
+        return childPlayers.map(player => {
+          const hasBooking = state.bookings.some(b => 
+            b.scheduledDate === date &&
+            (b.bookedBy === player.id || b.collaborators.includes(player.id)) &&
+            b.status !== 'CANCELLED'
+          )
+          
+          const penaltyApplied = state.inactivityPenalties.some(
+            p => p.playerId === player.id && p.date === date
+          )
+
+          return {
+            playerId: player.id,
+            playerName: player.name,
+            playerEmoji: player.emoji,
+            date,
+            hasActivity: hasBooking,
+            penaltyApplied,
+            penaltyAmount: 5,
+          }
+        })
+      },
+
+      getUnpaidCollaborators: (bookingId: string) => {
+        const state = get()
+        const booking = state.bookings.find(b => b.id === bookingId)
+        
+        if (!booking) return []
+        
+        const paidCollaborators = booking.p2pTransfers.map(t => t.to)
+        return booking.collaborators.filter(c => !paidCollaborators.includes(c))
+      },
+
       // ==================== PERSISTENCE ====================
       resetState: () => {
         set(() => ({
@@ -920,6 +1290,10 @@ export const useStore = create<Store>()(
         events: state.events,
         news: state.news,
         lastUpdated: state.lastUpdated,
+        // Calendar Module
+        bookings: state.bookings,
+        collabTransfers: state.collabTransfers,
+        inactivityPenalties: state.inactivityPenalties,
       }),
     }
   )

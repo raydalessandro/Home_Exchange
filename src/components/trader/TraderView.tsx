@@ -9,6 +9,7 @@ import { P2PModal } from './P2PModal'
 import { TraderTabs } from './TraderTabs'
 import { TokenRedemption } from './TokenRedemption'
 import { TraderStats } from './TraderStats'
+import { CalendarView } from '@/components/calendar'
 
 export function TraderView() {
   const traderTab = useStore(state => state.traderTab)
@@ -22,6 +23,8 @@ export function TraderView() {
             <TradingGrid />
           </div>
         )
+      case 'calendar':
+        return <CalendarView />
       case 'tokens':
         return <TokenRedemption />
       case 'stats':

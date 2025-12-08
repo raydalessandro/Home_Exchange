@@ -10,6 +10,8 @@ import { WorkPriceControls } from './WorkPriceControls'
 import { AssetManagement } from './AssetManagement'
 import { PlayersManagement } from './PlayersManagement'
 import { EventLog } from './EventLog'
+import { InactivityPanel } from './InactivityPanel'
+import { CalendarView } from '@/components/calendar'
 import type { AdminSection } from '@/types'
 import { cn } from '@/lib/cn'
 import { 
@@ -19,6 +21,8 @@ import {
   Users, 
   Settings, 
   ScrollText,
+  Calendar,
+  AlertTriangle,
   type LucideIcon
 } from 'lucide-react'
 
@@ -47,6 +51,10 @@ export function AdminView() {
             <MarketControls />
           </div>
         )
+      case 'calendar':
+        return <CalendarView />
+      case 'inactivity':
+        return <InactivityPanel />
       case 'events':
         return <EventLog />
       default:
@@ -81,8 +89,8 @@ interface MobileNavItem {
 const mobileNavItems: MobileNavItem[] = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'tokens', icon: Ticket, label: 'Gettoni' },
-  { id: 'assets', icon: Palette, label: 'Asset' },
-  { id: 'players', icon: Users, label: 'Players' },
+  { id: 'calendar', icon: Calendar, label: 'Calendario' },
+  { id: 'inactivity', icon: AlertTriangle, label: 'Inattività' },
   { id: 'market', icon: Settings, label: 'Market' },
   { id: 'events', icon: ScrollText, label: 'Log' },
 ]

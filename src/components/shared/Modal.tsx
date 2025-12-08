@@ -6,12 +6,13 @@ import type { ReactNode } from 'react'
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  title: string
+  title?: string
   children: ReactNode
   className?: string
+  showHeader?: boolean
 }
 
-export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, className, showHeader = true }: ModalProps) {
   if (!isOpen) return null
 
   return (
@@ -25,27 +26,29 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
       {/* Modal Content */}
       <div
         className={cn(
-          'relative bg-white rounded-2xl shadow-2xl',
-          'max-w-md w-full mx-4',
+          'relative bg-ink-800 rounded-2xl shadow-2xl border border-ink-600',
+          'max-w-md w-full mx-4 max-h-[90vh] overflow-auto',
           'animate-slide-up',
           className
         )}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-ink-100">
-          <h2 className="font-serif text-xl text-ink-800">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full
-                       hover:bg-ink-100 transition-colors text-ink-500"
-          >
-            ✕
-          </button>
-        </div>
+        {/* Header (optional) */}
+        {showHeader && title && (
+          <div className="flex items-center justify-between p-4 border-b border-ink-600">
+            <h2 className="font-serif text-xl text-gold">{title}</h2>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full
+                         hover:bg-ink-700 transition-colors text-cream-200"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         
         {/* Body */}
-        <div className="p-4">
+        <div className={title ? 'p-4' : ''}>
           {children}
         </div>
       </div>

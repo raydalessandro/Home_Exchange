@@ -10,6 +10,8 @@ import {
   Users, 
   Settings, 
   ScrollText,
+  Calendar,
+  AlertTriangle,
   type LucideIcon
 } from 'lucide-react'
 
@@ -23,6 +25,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Metriche economiche' },
   { id: 'tokens', label: 'Gettoni', icon: Ticket, description: 'Emissione lavori' },
+  { id: 'calendar', label: 'Calendario', icon: Calendar, description: 'Prenotazioni attività' },
+  { id: 'inactivity', label: 'Inattività', icon: AlertTriangle, description: 'Report e penalità' },
   { id: 'assets', label: 'Asset', icon: Palette, description: 'Gestione titoli' },
   { id: 'players', label: 'Giocatori', icon: Users, description: 'Bilanci utenti' },
   { id: 'market', label: 'Mercato', icon: Settings, description: 'Eventi e annunci' },

@@ -5,7 +5,7 @@ import { useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import type { TraderTab } from '@/types'
 import { cn } from '@/lib/cn'
-import { ShoppingCart, Ticket, BarChart3, type LucideIcon } from 'lucide-react'
+import { ShoppingCart, Ticket, BarChart3, Calendar, type LucideIcon } from 'lucide-react'
 
 interface TabItem {
   id: TraderTab
@@ -15,6 +15,7 @@ interface TabItem {
 
 const tabItems: TabItem[] = [
   { id: 'market', label: 'Mercato', icon: ShoppingCart },
+  { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'tokens', label: 'Gettoni', icon: Ticket },
   { id: 'stats', label: 'Statistiche', icon: BarChart3 },
 ]

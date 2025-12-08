@@ -114,6 +114,13 @@ export type EventType =
   | 'TOKEN_ISSUED'
   | 'TOKEN_REDEEMED'
   | 'TOKEN_REVOKED'
+  // Calendar events
+  | 'BOOKING_CREATED'
+  | 'BOOKING_MARKED_DONE'
+  | 'BOOKING_CONFIRMED'
+  | 'BOOKING_CANCELLED'
+  | 'COLLAB_PAYMENT'
+  | 'INACTIVITY_PENALTY'
 
 export interface AppEvent {
   id: string
@@ -170,6 +177,11 @@ export interface AppState {
   // Work Tokens
   workTokens: WorkToken[]
   workCategories: WorkCategory[]
+
+  // Calendar Module
+  bookings: import('./calendar').WorkBooking[]
+  collabTransfers: import('./calendar').CollabP2PTransfer[]
+  inactivityPenalties: import('./calendar').InactivityPenalty[]
 
   // Operations
   currentOperation: TradeOperation | null
@@ -238,6 +250,28 @@ export interface AppActions {
   setTemplatePrice: (categoryId: string, templateId: string, newValue: number) => void
   setCategoryMultiplier: (categoryId: string, multiplier: number) => void
   triggerWorkMarketEvent: (event: WorkMarketEventType) => void
+
+  // Calendar Module
+  createBooking: (params: {
+    templateId: string
+    categoryId: string
+    templateName: string
+    templateEmoji: string
+    baseValue: number
+    scheduledDate: string
+    scheduledTime?: string
+    collaboratorIds?: string[]
+  }) => void
+  markBookingDone: (bookingId: string) => void
+  confirmBooking: (bookingId: string) => void
+  cancelBooking: (bookingId: string) => void
+  payCollaborator: (params: { bookingId: string; toPlayerId: string; amount: number }) => void
+  applyInactivityPenalty: (playerId: string, date: string) => void
+  getBookingsForDate: (date: string) => import('./calendar').WorkBooking[]
+  getBookingsForPlayer: (playerId: string) => import('./calendar').WorkBooking[]
+  getPendingConfirmations: () => import('./calendar').WorkBooking[]
+  getInactivityReport: (date: string) => import('./calendar').InactivityReport[]
+  getUnpaidCollaborators: (bookingId: string) => string[]
 
   // UI
   openModal: (type: ModalState['type'], data?: Record<string, unknown>) => void
@@ -397,10 +431,13 @@ export type AdminSection =
   | 'assets'
   | 'players'
   | 'market'
+  | 'calendar'
+  | 'inactivity'
   | 'events'
 
 export type TraderTab = 
   | 'market'
+  | 'calendar'
   | 'tokens'
   | 'stats'
 

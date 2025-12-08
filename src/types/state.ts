@@ -135,6 +135,11 @@ export const initialState: Omit<AppState, keyof import('./index').AppActions> = 
   workTokens: [],
   workCategories: DEFAULT_WORK_CATEGORIES,
 
+  // Calendar Module
+  bookings: [],
+  collabTransfers: [],
+  inactivityPenalties: [],
+
   // Operations
   currentOperation: null,
   tradeHistory: [],
