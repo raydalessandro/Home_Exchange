@@ -50,7 +50,8 @@ export function WorkPriceControls() {
   const handleMultiplierChange = (categoryId: string, delta: number) => {
     const category = workCategories.find(c => c.id === categoryId)
     if (!category) return
-    const newMultiplier = Math.round((category.priceMultiplier + delta) * 100) / 100
+    const currentMultiplier = category.priceMultiplier ?? 1.0
+    const newMultiplier = Math.round((currentMultiplier + delta) * 100) / 100
     if (newMultiplier >= 0.1 && newMultiplier <= 5) {
       setCategoryMultiplier(categoryId, newMultiplier)
     }
@@ -98,7 +99,11 @@ export function WorkPriceControls() {
 
       {/* Categories */}
       <div className="space-y-3">
-        {workCategories.map(category => (
+        {workCategories.map(category => {
+          // Default values for backwards compatibility
+          const multiplier = category.priceMultiplier ?? 1.0
+          
+          return (
           <Card key={category.id} variant="dark" padding="none">
             {/* Category Header */}
             <button
@@ -131,11 +136,11 @@ export function WorkPriceControls() {
                   </button>
                   <span className={cn(
                     'font-mono text-sm min-w-[50px] text-center',
-                    category.priceMultiplier > 1 ? 'text-emerald-400' :
-                    category.priceMultiplier < 1 ? 'text-red-400' :
+                    multiplier > 1 ? 'text-emerald-400' :
+                    multiplier < 1 ? 'text-red-400' :
                     'text-cream'
                   )}>
-                    {category.priceMultiplier.toFixed(1)}x
+                    {multiplier.toFixed(1)}x
                   </span>
                   <button
                     onClick={() => handleMultiplierChange(category.id, 0.1)}
@@ -157,9 +162,11 @@ export function WorkPriceControls() {
             {expandedCategory === category.id && (
               <div className="border-t border-ink-600">
                 {category.templates.map(template => {
+                  // Default values for backwards compatibility
+                  const currentValue = template.currentValue ?? template.baseValue
                   const isEditing = editingTemplate?.catId === category.id && 
                                    editingTemplate?.tplId === template.id
-                  const priceChanged = template.currentValue !== template.baseValue
+                  const priceChanged = currentValue !== template.baseValue
                   
                   return (
                     <div
@@ -210,21 +217,21 @@ export function WorkPriceControls() {
                               'font-mono text-lg',
                               priceChanged ? 'text-gold' : 'text-cream'
                             )}>
-                              🪙{template.currentValue}
+                              🪙{currentValue}
                             </span>
                             {priceChanged && (
                               <span className={cn(
                                 'text-xs',
-                                template.currentValue > template.baseValue 
+                                currentValue > template.baseValue 
                                   ? 'text-emerald-400' 
                                   : 'text-red-400'
                               )}>
-                                {template.currentValue > template.baseValue ? '+' : ''}
-                                {Math.round((template.currentValue / template.baseValue - 1) * 100)}%
+                                {currentValue > template.baseValue ? '+' : ''}
+                                {Math.round((currentValue / template.baseValue - 1) * 100)}%
                               </span>
                             )}
                             <button
-                              onClick={() => handleStartEdit(category.id, template.id, template.currentValue)}
+                              onClick={() => handleStartEdit(category.id, template.id, currentValue)}
                               className="w-7 h-7 rounded bg-ink-700 hover:bg-ink-600 flex items-center justify-center text-cream/50 hover:text-cream transition-colors"
                             >
                               <Edit3 size={14} />
@@ -238,7 +245,8 @@ export function WorkPriceControls() {
               </div>
             )}
           </Card>
-        ))}
+          )
+        })}
       </div>
 
       {/* Info Box */}
