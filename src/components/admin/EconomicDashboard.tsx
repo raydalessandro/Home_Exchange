@@ -1,7 +1,10 @@
 'use client'
 
-import { useEconomicMetrics } from '@/store'
+import { useState } from 'react'
+import { useEconomicMetrics, seedHistoricalData } from '@/store'
+import { useStore } from '@/store'
 import { Card, StatCard, CardHeader } from '@/components/shared/Card'
+import { Button } from '@/components/shared/Button'
 import { cn } from '@/lib/cn'
 import { 
   Banknote, 
@@ -15,11 +18,35 @@ import {
   Users,
   ArrowLeftRight,
   AlertTriangle,
-  LayoutDashboard
+  LayoutDashboard,
+  FlaskConical,
+  Trash2,
+  Calendar
 } from 'lucide-react'
 
 export function EconomicDashboard() {
   const metrics = useEconomicMetrics()
+  const [isSeeding, setIsSeeding] = useState(false)
+  const workTokens = useStore(state => state.workTokens)
+  
+  const handleSeedHistory = async (days: number) => {
+    setIsSeeding(true)
+    // Piccolo delay per mostrare lo spinner
+    await new Promise(r => setTimeout(r, 100))
+    seedHistoricalData(days)
+    setIsSeeding(false)
+  }
+  
+  const handleClearHistory = () => {
+    if (confirm('Sei sicuro di voler cancellare tutto lo storico? I bilanci verranno resettati a 100.')) {
+      useStore.setState(state => ({
+        ...state,
+        workTokens: [],
+        events: [],
+        players: state.players.map(p => p.isBank ? p : { ...p, balance: 100 }),
+      }))
+    }
+  }
 
   const getInflationColor = (inflation: number) => {
     if (inflation > 15) return 'text-red-400'
@@ -80,8 +107,37 @@ export function EconomicDashboard() {
           value={`🪙 ${metrics.totalAssetValue}`}
           icon={<Package size={16} />}
           variant="success"
-          subtext="In circolazione"
+          subtext="Beni acquistati"
         />
+      </div>
+
+      {/* Production vs Money - NEW */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <StatCard
+          label="Produzione Lavoro"
+          value={`🪙 ${metrics.workProduction}`}
+          icon={<Activity size={16} />}
+          variant="success"
+          subtext="Lavori completati"
+        />
+        <StatCard
+          label="Economia Totale"
+          value={`🪙 ${metrics.economyValue}`}
+          icon={<TrendingUp size={16} />}
+          variant="gold"
+          subtext="Asset + Lavoro"
+        />
+        <div className="col-span-2 lg:col-span-1">
+          <StatCard
+            label="Rapporto M2/Economia"
+            value={metrics.economyValue > 0 
+              ? `${(metrics.M2 / metrics.economyValue * 100).toFixed(0)}%` 
+              : '-%'}
+            icon={<ArrowLeftRight size={16} />}
+            variant={metrics.inflation > 10 ? 'danger' : metrics.inflation > 0 ? 'warning' : 'success'}
+            subtext={metrics.inflation > 0 ? 'Eccesso moneta' : 'Equilibrio'}
+          />
+        </div>
       </div>
 
       {/* Inflation Panel */}
@@ -182,6 +238,73 @@ export function EconomicDashboard() {
             <div className="text-xl font-mono font-semibold text-amber-400">🪙 {metrics.unredeemedValue}</div>
           </div>
         </div>
+      </Card>
+
+      {/* Test Panel - Seed Historical Data */}
+      <Card variant="dark" className="border border-purple-500/30 bg-purple-500/5">
+        <CardHeader 
+          title="🧪 Test: Genera Storico" 
+          icon={<FlaskConical size={20} className="text-purple-400" />}
+        />
+        <p className="text-cream/60 text-sm mb-4">
+          Simula attività passate per testare le metriche economiche. 
+          Genera token di lavoro, riscossioni e variazioni di bilancio.
+        </p>
+        
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSeedHistory(7)}
+            isLoading={isSeeding}
+            icon={Calendar}
+          >
+            1 Settimana
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSeedHistory(30)}
+            isLoading={isSeeding}
+            icon={Calendar}
+          >
+            1 Mese
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSeedHistory(60)}
+            isLoading={isSeeding}
+            icon={Calendar}
+          >
+            2 Mesi
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSeedHistory(90)}
+            isLoading={isSeeding}
+            icon={Calendar}
+          >
+            3 Mesi
+          </Button>
+        </div>
+        
+        {workTokens.length > 0 && (
+          <div className="flex items-center justify-between pt-3 border-t border-purple-500/20">
+            <span className="text-cream/60 text-sm">
+              📊 {workTokens.length} token nello storico
+            </span>
+            <Button
+              variant="danger"
+              size="xs"
+              onClick={handleClearHistory}
+              icon={Trash2}
+            >
+              Cancella Storico
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   )

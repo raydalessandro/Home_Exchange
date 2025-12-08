@@ -58,12 +58,34 @@ export function calculatePortfolioValue(
 }
 
 /**
- * Calculate inflation rate
- * inflation = ((M2 / totalAssetValue) - 1) * 100
+ * Calculate work production value (completed/redeemed work tokens)
+ * This represents the PRODUCTION side of the economy
  */
-export function calculateInflation(M2: number, totalAssetValue: number): number {
-  if (totalAssetValue <= 0) return 0
-  return ((M2 / totalAssetValue) - 1) * 100
+export function calculateWorkProduction(workTokens: WorkToken[]): number {
+  return workTokens
+    .filter(t => t.redeemed)
+    .reduce((sum, t) => sum + t.finalValue, 0)
+}
+
+/**
+ * Calculate total economy value (assets + work production)
+ */
+export function calculateEconomyValue(totalAssetValue: number, workProduction: number): number {
+  return totalAssetValue + workProduction
+}
+
+/**
+ * Calculate inflation rate
+ * NEW FORMULA: inflation = ((M2 / economyValue) - 1) * 100
+ * Where economyValue = totalAssetValue + workProduction
+ * 
+ * This balances money supply (M2) against:
+ * - Goods purchased (totalAssetValue)
+ * - Services rendered (workProduction)
+ */
+export function calculateInflation(M2: number, economyValue: number): number {
+  if (economyValue <= 0) return 0
+  return ((M2 / economyValue) - 1) * 100
 }
 
 /**
@@ -90,9 +112,17 @@ export function calculateEconomicMetrics(
   const unredeemedValue = calculateUnredeemedValue(workTokens)
   const M2 = M1 + unredeemedValue
   const totalAssetValue = calculateTotalAssetValue(players, assets)
-  const inflation = calculateInflation(M2, totalAssetValue)
   
-  // GDP = total work tokens issued
+  // NEW: Work production = value of completed/redeemed work
+  const workProduction = calculateWorkProduction(workTokens)
+  
+  // NEW: Economy value = goods + services
+  const economyValue = calculateEconomyValue(totalAssetValue, workProduction)
+  
+  // NEW: Inflation uses economyValue (not just assets)
+  const inflation = calculateInflation(M2, economyValue)
+  
+  // GDP = total work tokens issued (count)
   const gdp = workTokens.length
   
   // Productivity: tokens per day over last 7 days
@@ -118,6 +148,8 @@ export function calculateEconomicMetrics(
     M2,
     unredeemedValue,
     totalAssetValue,
+    workProduction,
+    economyValue,
     inflation: parseFloat(inflation.toFixed(2)),
     inflationTrend,
     playerCount: nonBankPlayers.length,

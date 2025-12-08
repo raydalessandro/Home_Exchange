@@ -6,6 +6,7 @@ import { EconomicDashboard } from './EconomicDashboard'
 import { TokenEmission } from './TokenEmission'
 import { TokenManagement } from './TokenManagement'
 import { MarketControls } from './MarketControls'
+import { WorkPriceControls } from './WorkPriceControls'
 import { AssetManagement } from './AssetManagement'
 import { PlayersManagement } from './PlayersManagement'
 import { EventLog } from './EventLog'
@@ -40,7 +41,12 @@ export function AdminView() {
       case 'players':
         return <PlayersManagement />
       case 'market':
-        return <MarketControls />
+        return (
+          <div className="space-y-6 sm:space-y-8">
+            <WorkPriceControls />
+            <MarketControls />
+          </div>
+        )
       case 'events':
         return <EventLog />
       default:

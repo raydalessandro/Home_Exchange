@@ -127,6 +127,8 @@ export interface AppEvent {
 
 export type MarketEventType = 'CRASH' | 'BOOM' | 'WEEKEND'
 
+export type WorkMarketEventType = 'WORK_BOOM' | 'WORK_CRASH'
+
 export interface MarketEvent {
   type: MarketEventType
   multiplier: number
@@ -232,6 +234,11 @@ export interface AppActions {
   redeemAllTokens: (playerId: string) => void
   revokeWorkToken: (tokenId: string) => void
 
+  // Work Price Controls (Admin)
+  setTemplatePrice: (categoryId: string, templateId: string, newValue: number) => void
+  setCategoryMultiplier: (categoryId: string, multiplier: number) => void
+  triggerWorkMarketEvent: (event: WorkMarketEventType) => void
+
   // UI
   openModal: (type: ModalState['type'], data?: Record<string, unknown>) => void
   closeModal: () => void
@@ -284,7 +291,9 @@ export interface WorkTemplate {
   id: string
   name: string
   emoji: string
-  baseValue: number
+  baseValue: number        // Prezzo iniziale di riferimento
+  currentValue: number     // Prezzo attuale (modificabile admin)
+  priceHistory: PricePoint[]
 }
 
 export interface WorkCategory {
@@ -292,6 +301,7 @@ export interface WorkCategory {
   name: string
   emoji: string
   templates: WorkTemplate[]
+  priceMultiplier: number  // Moltiplicatore categoria (default 1.0)
 }
 
 export interface WorkToken {
@@ -312,53 +322,69 @@ export interface WorkToken {
   redeemedAt: number | null
 }
 
+// Helper per creare template con valori di default
+function createTemplate(id: string, name: string, emoji: string, baseValue: number): WorkTemplate {
+  return {
+    id,
+    name,
+    emoji,
+    baseValue,
+    currentValue: baseValue,
+    priceHistory: [{ price: baseValue, timestamp: Date.now() }],
+  }
+}
+
 // Default work categories
 export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
   {
     id: 'PULIZIE',
     name: 'Pulizie Casa',
     emoji: '🧹',
+    priceMultiplier: 1.0,
     templates: [
-      { id: 'clean_room', name: 'Pulisce Camera', emoji: '🛏️', baseValue: 15 },
-      { id: 'vacuum', name: 'Aspirapolvere', emoji: '🌪️', baseValue: 20 },
-      { id: 'sweep', name: 'Spazza Cucina', emoji: '🧹', baseValue: 10 },
-      { id: 'bathroom', name: 'Pulisce Bagno', emoji: '🚿', baseValue: 25 },
-      { id: 'tidy_up', name: 'Riordina Stanza', emoji: '🗂️', baseValue: 12 },
+      createTemplate('clean_room', 'Pulisce Camera', '🛏️', 15),
+      createTemplate('vacuum', 'Aspirapolvere', '🌪️', 20),
+      createTemplate('sweep', 'Spazza Cucina', '🧹', 10),
+      createTemplate('bathroom', 'Pulisce Bagno', '🚿', 25),
+      createTemplate('tidy_up', 'Riordina Stanza', '🗂️', 12),
     ],
   },
   {
     id: 'CUCINA',
     name: 'Cucina',
     emoji: '🍽️',
+    priceMultiplier: 1.0,
     templates: [
-      { id: 'dishes', name: 'Lava Piatti', emoji: '🍽️', baseValue: 15 },
-      { id: 'clear_table', name: 'Sparecchia', emoji: '🪑', baseValue: 8 },
-      { id: 'set_table', name: 'Apparecchia', emoji: '🍴', baseValue: 8 },
-      { id: 'cook_help', name: 'Aiuta a Cucinare', emoji: '👨‍🍳', baseValue: 20 },
-      { id: 'grocery', name: 'Sistema Spesa', emoji: '🛒', baseValue: 15 },
+      createTemplate('dishes', 'Lava Piatti', '🍽️', 15),
+      createTemplate('clear_table', 'Sparecchia', '🪑', 8),
+      createTemplate('set_table', 'Apparecchia', '🍴', 8),
+      createTemplate('cook_help', 'Aiuta a Cucinare', '👨‍🍳', 20),
+      createTemplate('grocery', 'Sistema Spesa', '🛒', 15),
     ],
   },
   {
     id: 'STUDIO',
     name: 'Studio',
     emoji: '📚',
+    priceMultiplier: 1.0,
     templates: [
-      { id: 'homework', name: 'Compiti Completi', emoji: '📝', baseValue: 25 },
-      { id: 'reading', name: 'Lettura 30min', emoji: '📖', baseValue: 15 },
-      { id: 'practice', name: 'Esercizi Extra', emoji: '✍️', baseValue: 20 },
-      { id: 'instrument', name: 'Pratica Strumento', emoji: '🎵', baseValue: 20 },
+      createTemplate('homework', 'Compiti Completi', '📝', 25),
+      createTemplate('reading', 'Lettura 30min', '📖', 15),
+      createTemplate('practice', 'Esercizi Extra', '✍️', 20),
+      createTemplate('instrument', 'Pratica Strumento', '🎵', 20),
     ],
   },
   {
     id: 'COMPORTAMENTO',
     name: 'Comportamento',
     emoji: '⭐',
+    priceMultiplier: 1.0,
     templates: [
-      { id: 'kind', name: 'Gentilezza', emoji: '💝', baseValue: 10 },
-      { id: 'help_sibling', name: 'Aiuta Fratello/Sorella', emoji: '🤝', baseValue: 15 },
-      { id: 'no_screen', name: 'Giornata No Screen', emoji: '📵', baseValue: 30 },
-      { id: 'early_bed', name: 'A Letto Presto', emoji: '🌙', baseValue: 10 },
-      { id: 'good_manners', name: 'Buone Maniere', emoji: '🎩', baseValue: 10 },
+      createTemplate('kind', 'Gentilezza', '💝', 10),
+      createTemplate('help_sibling', 'Aiuta Fratello/Sorella', '🤝', 15),
+      createTemplate('no_screen', 'Giornata No Screen', '📵', 30),
+      createTemplate('early_bed', 'A Letto Presto', '🌙', 10),
+      createTemplate('good_manners', 'Buone Maniere', '🎩', 10),
     ],
   },
 ]
@@ -385,11 +411,13 @@ export interface EconomicMetrics {
   M2: number // M1 + unredeemed tokens
   unredeemedValue: number // Value of pending tokens
   totalAssetValue: number
+  workProduction: number // Valore lavori completati (riscossi) = PRODUZIONE
+  economyValue: number // totalAssetValue + workProduction
   inflation: number
   inflationTrend: 'UP' | 'DOWN' | 'STABLE'
   playerCount: number
   totalTrades: number
-  gdp: number // Total completed work tokens
+  gdp: number // Total completed work tokens count
   productivity: number // Tokens per day
   outstandingTokens: number
   redemptionRate: number

@@ -25,6 +25,7 @@ import type {
   AdminSection,
   TraderTab,
   EconomicMetrics,
+  AppEvent,
 } from '@/types'
 import { QUALITY_MULTIPLIERS } from '@/types'
 import { initialState, initialPlayers, initialAssets } from '@/types/state'
@@ -803,6 +804,95 @@ export const useStore = create<Store>()(
         get().showToast({ message: 'Gettone revocato', type: 'info' })
       },
 
+      // ==================== WORK PRICE CONTROLS (ADMIN) ====================
+
+      setTemplatePrice: (categoryId: string, templateId: string, newValue: number) => {
+        if (newValue < 1) {
+          get().showToast({ message: 'Il valore minimo è 1', type: 'error' })
+          return
+        }
+
+        set(state => {
+          const category = state.workCategories.find(c => c.id === categoryId)
+          if (!category) return
+
+          const template = category.templates.find(t => t.id === templateId)
+          if (!template) return
+
+          const oldValue = template.currentValue
+          template.currentValue = newValue
+          template.priceHistory.push({ price: newValue, timestamp: Date.now() })
+          state.lastUpdated = Date.now()
+
+          // Log event
+          get().logEvent(
+            'PRICE_CHANGED',
+            `💼 Prezzo ${template.emoji} ${template.name}: 🪙${oldValue} → 🪙${newValue}`,
+            { categoryId, templateId, oldValue, newValue }
+          )
+        })
+
+        get().showToast({ message: 'Prezzo template aggiornato', type: 'success' })
+      },
+
+      setCategoryMultiplier: (categoryId: string, multiplier: number) => {
+        if (multiplier < 0.1 || multiplier > 5) {
+          get().showToast({ message: 'Moltiplicatore deve essere tra 0.1 e 5', type: 'error' })
+          return
+        }
+
+        set(state => {
+          const category = state.workCategories.find(c => c.id === categoryId)
+          if (!category) return
+
+          const oldMultiplier = category.priceMultiplier
+          category.priceMultiplier = multiplier
+
+          // Applica il moltiplicatore a tutti i template della categoria
+          category.templates.forEach(template => {
+            const newValue = Math.round(template.baseValue * multiplier)
+            template.currentValue = Math.max(1, newValue)
+            template.priceHistory.push({ price: template.currentValue, timestamp: Date.now() })
+          })
+
+          state.lastUpdated = Date.now()
+
+          get().logEvent(
+            'PRICE_CHANGED',
+            `📊 Categoria ${category.emoji} ${category.name}: moltiplicatore ${oldMultiplier}x → ${multiplier}x`,
+            { categoryId, oldMultiplier, multiplier }
+          )
+        })
+
+        get().showToast({ message: 'Moltiplicatore categoria aggiornato', type: 'success' })
+      },
+
+      triggerWorkMarketEvent: (event: 'WORK_BOOM' | 'WORK_CRASH') => {
+        const multiplier = event === 'WORK_BOOM' ? 1.2 : 0.8
+        const emoji = event === 'WORK_BOOM' ? '📈' : '📉'
+        const label = event === 'WORK_BOOM' ? 'BOOM LAVORI (+20%)' : 'CRASH LAVORI (-20%)'
+
+        set(state => {
+          state.workCategories.forEach(category => {
+            category.priceMultiplier = Math.round(category.priceMultiplier * multiplier * 100) / 100
+            category.templates.forEach(template => {
+              const newValue = Math.round(template.currentValue * multiplier)
+              template.currentValue = Math.max(1, newValue)
+              template.priceHistory.push({ price: template.currentValue, timestamp: Date.now() })
+            })
+          })
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'MARKET_EVENT',
+          `${emoji} ${label} - Tutti i prezzi lavoro modificati!`,
+          { event, multiplier }
+        )
+        get().sendAnnouncement(`${emoji} ${label}!`)
+        get().showToast({ message: label, type: event === 'WORK_BOOM' ? 'success' : 'warning' })
+      },
+
       // ==================== PERSISTENCE ====================
       resetState: () => {
         set(() => ({
@@ -872,10 +962,19 @@ function computeEconomicMetrics(state: Store): EconomicMetrics {
     return sum + asset.price * totalQty
   }, 0)
 
-  // Inflation: (M2 / totalAssetValue) - 1
-  const inflation = totalAssetValue > 0 ? ((M2 / totalAssetValue) - 1) * 100 : 0
+  // NEW: Work production = value of completed/redeemed work (PRODUZIONE)
+  const workProduction = state.workTokens
+    .filter(t => t.redeemed)
+    .reduce((sum, t) => sum + t.finalValue, 0)
   
-  // GDP: total work tokens issued
+  // NEW: Economy value = goods (asset) + services (work)
+  const economyValue = totalAssetValue + workProduction
+
+  // NEW: Inflation based on economy value (not just assets)
+  // inflation = (M2 / economyValue) - 1
+  const inflation = economyValue > 0 ? ((M2 / economyValue) - 1) * 100 : 0
+  
+  // GDP: total work tokens issued (count)
   const gdp = state.workTokens.length
   
   // Calculate productivity (tokens per day, simplified)
@@ -901,6 +1000,8 @@ function computeEconomicMetrics(state: Store): EconomicMetrics {
     M2,
     unredeemedValue,
     totalAssetValue,
+    workProduction,
+    economyValue,
     inflation: parseFloat(inflation.toFixed(2)),
     inflationTrend,
     playerCount: nonBankPlayers.length,
@@ -935,4 +1036,187 @@ export const selectUnredeemedTokensValue = (playerId: string) => (state: Store) 
   state.workTokens
     .filter(t => t.issuedTo === playerId && !t.redeemed)
     .reduce((sum, t) => sum + t.finalValue, 0)
+
+// ==================== SEED HISTORICAL DATA ====================
+// Funzione per generare e iniettare dati storici di test
+export function seedHistoricalData(days: number = 60) {
+  const store = useStore.getState()
+  const now = Date.now()
+  const MS_PER_DAY = 24 * 60 * 60 * 1000
+  const startDate = now - (days * MS_PER_DAY)
+  
+  // Configurazione lavori
+  const WORK_PATTERNS = [
+    { category: 'KITCHEN', template: 'clear_table', value: 5, emoji: '🍽️', name: 'Sparecchiare', freq: 0.9 },
+    { category: 'KITCHEN', template: 'wash_dishes', value: 10, emoji: '🧽', name: 'Lavare piatti', freq: 0.7 },
+    { category: 'KITCHEN', template: 'cook_meal', value: 20, emoji: '👨‍🍳', name: 'Cucinare', freq: 0.3 },
+    { category: 'CLEANING', template: 'vacuum', value: 15, emoji: '🧹', name: 'Aspirapolvere', freq: 0.4 },
+    { category: 'CLEANING', template: 'tidy_room', value: 10, emoji: '🛏️', name: 'Sistemare camera', freq: 0.8 },
+    { category: 'CLEANING', template: 'bathroom', value: 20, emoji: '🚿', name: 'Pulire bagno', freq: 0.2 },
+    { category: 'OUTDOOR', template: 'trash', value: 5, emoji: '🗑️', name: 'Portare spazzatura', freq: 0.5 },
+    { category: 'STUDY', template: 'homework', value: 15, emoji: '📚', name: 'Compiti', freq: 0.85 },
+    { category: 'STUDY', template: 'reading', value: 10, emoji: '📖', name: 'Lettura', freq: 0.4 },
+  ]
+  
+  const QUALITIES: WorkQuality[] = ['BASIC', 'GOOD', 'EXCELLENT', 'PERFECT']
+  const QUALITY_WEIGHTS = [0.4, 0.35, 0.2, 0.05]
+  
+  const childPlayers = store.players.filter(p => !p.isBank && !p.isAdmin)
+  if (childPlayers.length === 0) {
+    console.error('❌ Nessun giocatore figlio trovato!')
+    return
+  }
+  
+  const newTokens: WorkToken[] = []
+  const newEvents: AppEvent[] = []
+  const balanceChanges: Record<string, number> = {}
+  
+  childPlayers.forEach(p => { balanceChanges[p.id] = 0 })
+  
+  // Genera dati giorno per giorno
+  for (let day = 0; day < days; day++) {
+    const dayTimestamp = startDate + (day * MS_PER_DAY)
+    const isWeekend = new Date(dayTimestamp).getDay() === 0 || new Date(dayTimestamp).getDay() === 6
+    
+    for (const work of WORK_PATTERNS) {
+      let freq = work.freq
+      if (isWeekend) {
+        freq = work.category === 'STUDY' ? freq * 0.3 : freq * 1.3
+      }
+      
+      if (Math.random() > freq) continue
+      
+      const player = childPlayers[Math.floor(Math.random() * childPlayers.length)]
+      if (!player) continue
+      
+      // Scegli qualità
+      const rand = Math.random()
+      let cumulative = 0
+      let quality: WorkQuality = 'BASIC'
+      for (let i = 0; i < QUALITIES.length; i++) {
+        const weight = QUALITY_WEIGHTS[i]
+        const q = QUALITIES[i]
+        if (weight === undefined || q === undefined) continue
+        cumulative += weight
+        if (rand <= cumulative) {
+          quality = q
+          break
+        }
+      }
+      
+      const finalValue = Math.round(work.value * QUALITY_MULTIPLIERS[quality])
+      const tokenTime = dayTimestamp + (14 + Math.floor(Math.random() * 8)) * 3600000 + Math.floor(Math.random() * 3600000)
+      
+      // 80% riscossi entro 2 giorni
+      const willRedeem = Math.random() < 0.8
+      const redeemTime = willRedeem ? tokenTime + Math.floor(Math.random() * 2 * MS_PER_DAY) : null
+      const isRedeemed = redeemTime !== null && redeemTime < now
+      
+      const token: WorkToken = {
+        id: `hist-${day}-${work.template}-${Math.random().toString(36).substr(2, 6)}`,
+        categoryId: work.category,
+        templateId: work.template,
+        name: work.name,
+        emoji: work.emoji,
+        description: work.name,
+        baseValue: work.value,
+        quality,
+        qualityMultiplier: QUALITY_MULTIPLIERS[quality],
+        finalValue,
+        issuedTo: player.id,
+        issuedBy: 'papa',
+        issuedAt: tokenTime,
+        redeemed: isRedeemed,
+        redeemedAt: isRedeemed && redeemTime ? redeemTime : null,
+      }
+      
+      newTokens.push(token)
+      
+      if (isRedeemed) {
+        balanceChanges[player.id] = (balanceChanges[player.id] ?? 0) + finalValue
+      }
+      
+      newEvents.push({
+        id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        type: 'TOKEN_EMITTED' as EventType,
+        message: `🎫 ${work.emoji} ${work.name} emesso per ${player.name} (🪙${finalValue})`,
+        timestamp: tokenTime,
+      })
+      
+      if (isRedeemed && redeemTime) {
+        newEvents.push({
+          id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          type: 'TOKEN_REDEEMED' as EventType,
+          message: `💵 ${player.name} ha riscosso ${work.name} (🪙${finalValue})`,
+          timestamp: redeemTime,
+        })
+      }
+    }
+  }
+  
+  // Ordina per timestamp
+  newTokens.sort((a, b) => a.issuedAt - b.issuedAt)
+  newEvents.sort((a, b) => a.timestamp - b.timestamp)
+  
+  // Calcola statistiche
+  const totalEmitted = newTokens.reduce((s, t) => s + t.finalValue, 0)
+  const totalRedeemed = newTokens.filter(t => t.redeemed).reduce((s, t) => s + t.finalValue, 0)
+  const pendingValue = totalEmitted - totalRedeemed
+  const pendingCount = newTokens.filter(t => !t.redeemed).length
+  
+  console.log('\n📊 === SIMULAZIONE STORICO ===')
+  console.log(`📅 Giorni simulati: ${days}`)
+  console.log(`🎫 Token emessi: ${newTokens.length}`)
+  console.log(`💰 Valore totale emesso: 🪙${totalEmitted}`)
+  console.log(`💵 Valore riscosso: 🪙${totalRedeemed}`)
+  console.log(`⏳ Token pending: ${pendingCount} (🪙${pendingValue})`)
+  console.log(`📈 Tasso riscossione: ${Math.round((totalRedeemed / totalEmitted) * 100)}%`)
+  console.log(`📊 Media token/giorno: ${(newTokens.length / days).toFixed(1)}`)
+  console.log(`💎 Media valore/giorno: 🪙${Math.round(totalEmitted / days)}`)
+  console.log('\n👤 Per giocatore:')
+  childPlayers.forEach(p => {
+    const playerTokens = newTokens.filter(t => t.issuedTo === p.id)
+    const playerEmitted = playerTokens.reduce((s, t) => s + t.finalValue, 0)
+    const playerRedeemed = playerTokens.filter(t => t.redeemed).reduce((s, t) => s + t.finalValue, 0)
+    console.log(`   ${p.emoji} ${p.name}: ${playerTokens.length} token, 🪙${playerEmitted} emessi, 🪙${playerRedeemed} riscossi`)
+  })
+  
+  // Inietta nello store
+  useStore.setState(state => ({
+    ...state,
+    workTokens: [...state.workTokens, ...newTokens],
+    events: [...state.events, ...newEvents].sort((a, b) => b.timestamp - a.timestamp).slice(0, 500),
+    players: state.players.map(p => {
+      const change = balanceChanges[p.id]
+      if (change && change > 0) {
+        return { ...p, balance: p.balance + change }
+      }
+      return p
+    }),
+  }))
+  
+  console.log('\n✅ Dati storici iniettati con successo!')
+  console.log('🔄 Ricarica la pagina o controlla la Dashboard per vedere le metriche aggiornate.')
+  
+  return { tokens: newTokens.length, emitted: totalEmitted, redeemed: totalRedeemed, pending: pendingValue }
+}
+
+// Esponi globalmente per la console del browser
+if (typeof window !== 'undefined') {
+  (window as any).seedHistory = seedHistoricalData;
+  (window as any).clearHistory = () => {
+    useStore.setState(state => ({
+      ...state,
+      workTokens: [],
+      events: [],
+      players: state.players.map(p => p.isBank ? p : { ...p, balance: 100 }),
+    }))
+    console.log('🗑️ Storico cancellato, bilanci resettati a 100')
+  };
+  (window as any).store = useStore
+  console.log('🎮 Casa Exchange Debug Tools:')
+  console.log('   seedHistory(60)  - Genera 60 giorni di storico')
+  console.log('   clearHistory()   - Cancella lo storico')
+  console.log('   store.getState() - Visualizza lo stato')
+}
 
