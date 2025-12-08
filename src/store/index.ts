@@ -128,9 +128,22 @@ export const useStore = create<Store>()(
             throw createTradeError('INVALID_QUANTITY', { quantity })
           }
 
-          const totalAmount = asset.price * quantity
+          // Use appropriate price based on trade type
+          const tradePrice = type === 'BUY' 
+            ? (asset.bankBuyPrice ?? asset.price)  // Bank sells at bankBuyPrice
+            : (asset.bankSellPrice ?? asset.price) // Bank buys at bankSellPrice
+          const totalAmount = tradePrice * quantity
 
           if (type === 'BUY') {
+            // Check bank has enough reserve
+            const bankReserve = asset.bankReserve ?? Infinity
+            if (bankReserve < quantity) {
+              throw createTradeError('INSUFFICIENT_ASSETS', {
+                required: quantity,
+                available: bankReserve,
+              })
+            }
+            // Check player has enough funds
             if (player.balance < totalAmount) {
               throw createTradeError('INSUFFICIENT_FUNDS', {
                 required: totalAmount,
@@ -138,6 +151,14 @@ export const useStore = create<Store>()(
               })
             }
           } else if (type === 'SELL') {
+            // Check buyback is enabled
+            const buybackEnabled = asset.buybackEnabled ?? true
+            if (!buybackEnabled) {
+              throw createTradeError('VALIDATION_FAILED', { 
+                reason: 'Riacquisto non disponibile per questo asset' 
+              })
+            }
+            // Check player has assets to sell
             const playerHoldings = player.holdings[assetId] ?? 0
             if (playerHoldings < quantity) {
               throw createTradeError('INSUFFICIENT_ASSETS', {
@@ -165,7 +186,7 @@ export const useStore = create<Store>()(
             playerId,
             assetId,
             quantity,
-            pricePerUnit: asset.price,
+            pricePerUnit: tradePrice,
             totalAmount,
             counterpartyId: 'bank',
             status: 'CONFIRMED',
@@ -178,8 +199,9 @@ export const useStore = create<Store>()(
           set(state => {
             const playerIndex = state.players.findIndex(p => p.id === playerId)
             const bankIndex = state.players.findIndex(p => p.isBank)
+            const assetToUpdate = state.assets[assetId]
 
-            if (playerIndex === -1 || bankIndex === -1) return
+            if (playerIndex === -1 || bankIndex === -1 || !assetToUpdate) return
 
             if (type === 'BUY') {
               // Player pays, gets asset
@@ -191,6 +213,17 @@ export const useStore = create<Store>()(
               // Bank receives payment
               state.players[bankIndex]!.balance += totalAmount
               state.players[bankIndex]!.updatedAt = Date.now()
+
+              // Update asset supply
+              assetToUpdate.circulatingSupply = (assetToUpdate.circulatingSupply ?? 0) + quantity
+              assetToUpdate.bankReserve = Math.max(0, (assetToUpdate.bankReserve ?? 0) - quantity)
+              assetToUpdate.supplyHistory = assetToUpdate.supplyHistory || []
+              assetToUpdate.supplyHistory.push({
+                circulatingSupply: assetToUpdate.circulatingSupply,
+                bankReserve: assetToUpdate.bankReserve,
+                timestamp: Date.now()
+              })
+              assetToUpdate.updatedAt = Date.now()
             } else if (type === 'SELL') {
               // Player receives payment, loses asset
               state.players[playerIndex]!.balance += totalAmount
@@ -201,6 +234,17 @@ export const useStore = create<Store>()(
               // Bank pays
               state.players[bankIndex]!.balance -= totalAmount
               state.players[bankIndex]!.updatedAt = Date.now()
+
+              // Update asset supply (asset returns to bank reserve)
+              assetToUpdate.circulatingSupply = Math.max(0, (assetToUpdate.circulatingSupply ?? 0) - quantity)
+              assetToUpdate.bankReserve = (assetToUpdate.bankReserve ?? 0) + quantity
+              assetToUpdate.supplyHistory = assetToUpdate.supplyHistory || []
+              assetToUpdate.supplyHistory.push({
+                circulatingSupply: assetToUpdate.circulatingSupply,
+                bankReserve: assetToUpdate.bankReserve,
+                timestamp: Date.now()
+              })
+              assetToUpdate.updatedAt = Date.now()
             }
 
             // Update current user if it's the same player
@@ -393,12 +437,18 @@ export const useStore = create<Store>()(
           return
         }
 
+        const now = Date.now()
         const asset: Asset = {
           ...assetData,
           id,
-          priceHistory: [{ price: assetData.price, timestamp: Date.now() }],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          priceHistory: [{ price: assetData.price, timestamp: now }],
+          supplyHistory: [{ 
+            circulatingSupply: assetData.circulatingSupply ?? 0, 
+            bankReserve: assetData.bankReserve ?? assetData.totalSupply ?? 100, 
+            timestamp: now 
+          }],
+          createdAt: now,
+          updatedAt: now,
         }
 
         set(state => {
@@ -433,6 +483,7 @@ export const useStore = create<Store>()(
           const assetToUpdate = state.assets[assetId]
           if (assetToUpdate) {
             assetToUpdate.price = newPrice
+            assetToUpdate.bankBuyPrice = newPrice
             assetToUpdate.priceHistory.push({ price: newPrice, timestamp: Date.now() })
             assetToUpdate.updatedAt = Date.now()
           }
@@ -444,6 +495,119 @@ export const useStore = create<Store>()(
           `${asset.emoji} ${asset.name}: 🪙${oldPrice} → 🪙${newPrice}`,
           { assetId, oldPrice, newPrice }
         )
+      },
+
+      // ==================== ASSET SUPPLY MANAGEMENT ====================
+
+      setAssetSupply: (assetId: string, newTotalSupply: number) => {
+        const asset = get().assets[assetId]
+        if (!asset || newTotalSupply < 0) return
+
+        const oldSupply = asset.totalSupply
+        // New reserve = newTotal - circulating (can't be negative)
+        const newReserve = Math.max(0, newTotalSupply - asset.circulatingSupply)
+
+        set(state => {
+          const a = state.assets[assetId]
+          if (a) {
+            a.totalSupply = newTotalSupply
+            a.bankReserve = newReserve
+            a.supplyHistory = a.supplyHistory || []
+            a.supplyHistory.push({ 
+              circulatingSupply: a.circulatingSupply, 
+              bankReserve: newReserve, 
+              timestamp: Date.now() 
+            })
+            a.updatedAt = Date.now()
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'SUPPLY_CHANGED',
+          `${asset.emoji} ${asset.name}: supply ${oldSupply} → ${newTotalSupply} (riserva: ${newReserve})`,
+          { assetId, oldSupply, newTotalSupply, newReserve }
+        )
+        get().showToast({ message: `Supply di ${asset.name} aggiornato`, type: 'success' })
+      },
+
+      setBankPrices: (assetId: string, buyPrice: number, sellPrice: number) => {
+        const asset = get().assets[assetId]
+        if (!asset || buyPrice <= 0) return
+
+        set(state => {
+          const a = state.assets[assetId]
+          if (a) {
+            a.bankBuyPrice = buyPrice
+            a.bankSellPrice = Math.max(0, sellPrice)
+            a.price = buyPrice // Keep legacy price in sync
+            a.priceHistory.push({ price: buyPrice, timestamp: Date.now() })
+            a.updatedAt = Date.now()
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'BANK_PRICES_CHANGED',
+          `${asset.emoji} ${asset.name}: vendita 🪙${buyPrice}, riacquisto 🪙${sellPrice}`,
+          { assetId, buyPrice, sellPrice }
+        )
+        get().showToast({ message: `Prezzi banca di ${asset.name} aggiornati`, type: 'success' })
+      },
+
+      toggleBuyback: (assetId: string, enabled: boolean) => {
+        const asset = get().assets[assetId]
+        if (!asset) return
+
+        set(state => {
+          const a = state.assets[assetId]
+          if (a) {
+            a.buybackEnabled = enabled
+            a.updatedAt = Date.now()
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'BUYBACK_TOGGLED',
+          `${asset.emoji} ${asset.name}: riacquisto ${enabled ? 'ATTIVO' : 'DISATTIVO'}`,
+          { assetId, enabled }
+        )
+        get().showToast({ 
+          message: `Riacquisto ${asset.name} ${enabled ? 'attivato' : 'disattivato'}`, 
+          type: enabled ? 'success' : 'warning' 
+        })
+      },
+
+      emitAssetFromBank: (assetId: string, quantity: number) => {
+        const asset = get().assets[assetId]
+        if (!asset || quantity <= 0) return
+
+        const newTotal = asset.totalSupply + quantity
+        const newReserve = asset.bankReserve + quantity
+
+        set(state => {
+          const a = state.assets[assetId]
+          if (a) {
+            a.totalSupply = newTotal
+            a.bankReserve = newReserve
+            a.supplyHistory = a.supplyHistory || []
+            a.supplyHistory.push({ 
+              circulatingSupply: a.circulatingSupply, 
+              bankReserve: newReserve, 
+              timestamp: Date.now() 
+            })
+            a.updatedAt = Date.now()
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'ASSET_EMITTED',
+          `${asset.emoji} +${quantity} ${asset.name} emessi dalla banca (totale: ${newTotal})`,
+          { assetId, quantity, newTotal }
+        )
+        get().showToast({ message: `+${quantity} ${asset.name} emessi`, type: 'success' })
       },
 
       // ==================== ADMIN - PLAYERS ====================
@@ -1330,19 +1494,54 @@ function computeEconomicMetrics(state: Store): EconomicMetrics {
   // M2: M1 + unredeemed tokens (potential money supply)
   const M2 = M1 + unredeemedValue
   
-  // Total asset value held by players
+  // Total asset value held by players (legacy calculation)
   const totalAssetValue = Object.values(state.assets).reduce((sum, asset) => {
     const totalQty = nonBankPlayers.reduce((qty, p) => qty + (p.holdings[asset.id] ?? 0), 0)
     return sum + asset.price * totalQty
   }, 0)
+
+  // NEW: Asset Supply Metrics
+  const assetNominalValue = Object.values(state.assets).reduce((sum, asset) => {
+    const circulating = asset.circulatingSupply ?? 0
+    const bankPrice = asset.bankBuyPrice ?? asset.price
+    return sum + circulating * bankPrice
+  }, 0)
+
+  const assetMarketValue = Object.values(state.assets).reduce((sum, asset) => {
+    const circulating = asset.circulatingSupply ?? 0
+    const marketPrice = asset.lastP2PPrice ?? asset.bankBuyPrice ?? asset.price
+    return sum + circulating * marketPrice
+  }, 0)
+
+  const totalAssetSupply = Object.values(state.assets).reduce((sum, asset) => {
+    return sum + (asset.totalSupply ?? 0)
+  }, 0)
+
+  const totalCirculating = Object.values(state.assets).reduce((sum, asset) => {
+    return sum + (asset.circulatingSupply ?? 0)
+  }, 0)
+
+  const bankReserveValue = Object.values(state.assets).reduce((sum, asset) => {
+    const reserve = asset.bankReserve ?? 0
+    const bankPrice = asset.bankBuyPrice ?? asset.price
+    return sum + reserve * bankPrice
+  }, 0)
+
+  const marketPremium = assetNominalValue > 0 
+    ? ((assetMarketValue - assetNominalValue) / assetNominalValue) * 100 
+    : 0
+
+  const supplyRatio = totalAssetSupply > 0 
+    ? (totalCirculating / totalAssetSupply) * 100 
+    : 0
 
   // NEW: Work production = value of completed/redeemed work (PRODUZIONE)
   const workProduction = state.workTokens
     .filter(t => t.redeemed)
     .reduce((sum, t) => sum + t.finalValue, 0)
   
-  // NEW: Economy value = goods (asset) + services (work)
-  const economyValue = totalAssetValue + workProduction
+  // NEW: Economy value = asset nominal value + work production
+  const economyValue = assetNominalValue + workProduction
 
   // NEW: Inflation based on economy value (not just assets)
   // inflation = (M2 / economyValue) - 1
@@ -1384,6 +1583,14 @@ function computeEconomicMetrics(state: Store): EconomicMetrics {
     productivity: parseFloat(productivity.toFixed(2)),
     outstandingTokens,
     redemptionRate: parseFloat(redemptionRate.toFixed(2)),
+    // Asset Supply Metrics
+    assetNominalValue,
+    assetMarketValue,
+    marketPremium: parseFloat(marketPremium.toFixed(2)),
+    totalAssetSupply,
+    totalCirculating,
+    bankReserveValue,
+    supplyRatio: parseFloat(supplyRatio.toFixed(2)),
   }
 }
 
@@ -1531,6 +1738,156 @@ export function seedHistoricalData(days: number = 60) {
   // Ordina per timestamp
   newTokens.sort((a, b) => a.issuedAt - b.issuedAt)
   newEvents.sort((a, b) => a.timestamp - b.timestamp)
+
+  // ==================== SIMULA ACQUISTI ASSET ====================
+  const assets = Object.values(store.assets)
+  const assetChanges: Record<string, { 
+    circulatingSupply: number; 
+    bankReserve: number; 
+    lastP2PPrice: number;
+    playerHoldings: Record<string, number>;
+  }> = {}
+  
+  // Inizializza tracking asset
+  assets.forEach(asset => {
+    assetChanges[asset.id] = {
+      circulatingSupply: asset.circulatingSupply ?? 0,
+      bankReserve: asset.bankReserve ?? asset.totalSupply ?? 100,
+      lastP2PPrice: asset.lastP2PPrice ?? asset.bankBuyPrice ?? asset.price,
+      playerHoldings: {},
+    }
+    childPlayers.forEach(p => {
+      assetChanges[asset.id]!.playerHoldings[p.id] = p.holdings[asset.id] ?? 0
+    })
+  })
+
+  let totalBankBuys = 0
+  let totalBankSells = 0
+  let totalP2PTrades = 0
+  const newTrades: Trade[] = []
+
+  // Simula acquisti/vendite per ogni giorno
+  for (let day = 0; day < days; day++) {
+    const dayTimestamp = startDate + (day * MS_PER_DAY)
+    
+    // Ogni giocatore ha probabilità di comprare/vendere
+    for (const player of childPlayers) {
+      const playerBalance = balanceChanges[player.id] ?? 0
+      
+      // 30% probabilità di comprare un asset
+      if (Math.random() < 0.3 && playerBalance > 10) {
+        const asset = assets[Math.floor(Math.random() * assets.length)]
+        if (!asset) continue
+        
+        const assetState = assetChanges[asset.id]
+        if (!assetState || assetState.bankReserve <= 0) continue
+        
+        const price = asset.bankBuyPrice ?? asset.price
+        if (playerBalance >= price) {
+          // Acquisto dalla banca
+          balanceChanges[player.id] = (balanceChanges[player.id] ?? 0) - price
+          assetState.circulatingSupply += 1
+          assetState.bankReserve -= 1
+          assetState.playerHoldings[player.id] = (assetState.playerHoldings[player.id] ?? 0) + 1
+          totalBankBuys++
+
+          newTrades.push({
+            id: `trade-buy-${day}-${Math.random().toString(36).substr(2, 6)}`,
+            type: 'BUY',
+            playerId: player.id,
+            assetId: asset.id,
+            quantity: 1,
+            pricePerUnit: price,
+            totalAmount: price,
+            counterpartyId: 'bank',
+            status: 'CONFIRMED',
+            error: null,
+            createdAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            updatedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            completedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+          })
+        }
+      }
+      
+      // 15% probabilità di vendere un asset alla banca
+      if (Math.random() < 0.15) {
+        const asset = assets[Math.floor(Math.random() * assets.length)]
+        if (!asset || !(asset.buybackEnabled ?? true)) continue
+        
+        const assetState = assetChanges[asset.id]
+        if (!assetState) continue
+        
+        const playerHolding = assetState.playerHoldings[player.id] ?? 0
+        if (playerHolding > 0) {
+          const sellPrice = asset.bankSellPrice ?? Math.round(asset.price * 0.7)
+          balanceChanges[player.id] = (balanceChanges[player.id] ?? 0) + sellPrice
+          assetState.circulatingSupply -= 1
+          assetState.bankReserve += 1
+          assetState.playerHoldings[player.id] = playerHolding - 1
+          totalBankSells++
+
+          newTrades.push({
+            id: `trade-sell-${day}-${Math.random().toString(36).substr(2, 6)}`,
+            type: 'SELL',
+            playerId: player.id,
+            assetId: asset.id,
+            quantity: 1,
+            pricePerUnit: sellPrice,
+            totalAmount: sellPrice,
+            counterpartyId: 'bank',
+            status: 'CONFIRMED',
+            error: null,
+            createdAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            updatedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            completedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+          })
+        }
+      }
+
+      // 10% probabilità di P2P trade (simula variazione prezzo mercato)
+      if (Math.random() < 0.1 && childPlayers.length > 1) {
+        const asset = assets[Math.floor(Math.random() * assets.length)]
+        if (!asset) continue
+        
+        const assetState = assetChanges[asset.id]
+        if (!assetState) continue
+
+        const playerHolding = assetState.playerHoldings[player.id] ?? 0
+        if (playerHolding > 0) {
+          const otherPlayers = childPlayers.filter(p => p.id !== player.id)
+          const recipient = otherPlayers[Math.floor(Math.random() * otherPlayers.length)]
+          if (!recipient) continue
+
+          // Prezzo P2P varia +/- 30% dal prezzo banca
+          const basePrice = asset.bankBuyPrice ?? asset.price
+          const p2pVariation = 0.7 + Math.random() * 0.6 // 0.7 to 1.3
+          const p2pPrice = Math.round(basePrice * p2pVariation)
+
+          // Aggiorna lastP2PPrice
+          assetState.lastP2PPrice = p2pPrice
+          assetState.playerHoldings[player.id] = playerHolding - 1
+          assetState.playerHoldings[recipient.id] = (assetState.playerHoldings[recipient.id] ?? 0) + 1
+          totalP2PTrades++
+
+          newTrades.push({
+            id: `trade-p2p-${day}-${Math.random().toString(36).substr(2, 6)}`,
+            type: 'P2P',
+            playerId: player.id,
+            assetId: asset.id,
+            quantity: 1,
+            pricePerUnit: p2pPrice,
+            totalAmount: p2pPrice,
+            counterpartyId: recipient.id,
+            status: 'CONFIRMED',
+            error: null,
+            createdAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            updatedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+            completedAt: dayTimestamp + Math.floor(Math.random() * MS_PER_DAY),
+          })
+        }
+      }
+    }
+  }
   
   // Calcola statistiche
   const totalEmitted = newTokens.reduce((s, t) => s + t.finalValue, 0)
@@ -1540,52 +1897,120 @@ export function seedHistoricalData(days: number = 60) {
   
   console.log('\n📊 === SIMULAZIONE STORICO ===')
   console.log(`📅 Giorni simulati: ${days}`)
-  console.log(`🎫 Token emessi: ${newTokens.length}`)
-  console.log(`💰 Valore totale emesso: 🪙${totalEmitted}`)
-  console.log(`💵 Valore riscosso: 🪙${totalRedeemed}`)
-  console.log(`⏳ Token pending: ${pendingCount} (🪙${pendingValue})`)
-  console.log(`📈 Tasso riscossione: ${Math.round((totalRedeemed / totalEmitted) * 100)}%`)
-  console.log(`📊 Media token/giorno: ${(newTokens.length / days).toFixed(1)}`)
-  console.log(`💎 Media valore/giorno: 🪙${Math.round(totalEmitted / days)}`)
+  console.log('\n🎫 WORK TOKENS:')
+  console.log(`   Token emessi: ${newTokens.length}`)
+  console.log(`   Valore totale emesso: 🪙${totalEmitted}`)
+  console.log(`   Valore riscosso: 🪙${totalRedeemed}`)
+  console.log(`   Token pending: ${pendingCount} (🪙${pendingValue})`)
+  console.log(`   Tasso riscossione: ${Math.round((totalRedeemed / totalEmitted) * 100)}%`)
+  console.log('\n📦 ASSET TRADES:')
+  console.log(`   Acquisti da banca: ${totalBankBuys}`)
+  console.log(`   Vendite a banca: ${totalBankSells}`)
+  console.log(`   Scambi P2P: ${totalP2PTrades}`)
   console.log('\n👤 Per giocatore:')
   childPlayers.forEach(p => {
     const playerTokens = newTokens.filter(t => t.issuedTo === p.id)
-    const playerEmitted = playerTokens.reduce((s, t) => s + t.finalValue, 0)
     const playerRedeemed = playerTokens.filter(t => t.redeemed).reduce((s, t) => s + t.finalValue, 0)
-    console.log(`   ${p.emoji} ${p.name}: ${playerTokens.length} token, 🪙${playerEmitted} emessi, 🪙${playerRedeemed} riscossi`)
+    const netChange = balanceChanges[p.id] ?? 0
+    console.log(`   ${p.emoji} ${p.name}: ${playerTokens.length} token, 🪙${playerRedeemed} riscossi, netto: ${netChange >= 0 ? '+' : ''}🪙${netChange}`)
   })
   
   // Inietta nello store
-  useStore.setState(state => ({
-    ...state,
-    workTokens: [...state.workTokens, ...newTokens],
-    events: [...state.events, ...newEvents].sort((a, b) => b.timestamp - a.timestamp).slice(0, 500),
-    players: state.players.map(p => {
-      const change = balanceChanges[p.id]
-      if (change && change > 0) {
-        return { ...p, balance: p.balance + change }
+  useStore.setState(state => {
+    // Aggiorna asset con nuovi supply e lastP2PPrice
+    const updatedAssets = { ...state.assets }
+    for (const [assetId, changes] of Object.entries(assetChanges)) {
+      const existingAsset = updatedAssets[assetId]
+      if (existingAsset && changes) {
+        updatedAssets[assetId] = {
+          ...existingAsset,
+          circulatingSupply: changes.circulatingSupply,
+          bankReserve: changes.bankReserve,
+          lastP2PPrice: changes.lastP2PPrice,
+          supplyHistory: [
+            ...(existingAsset.supplyHistory || []),
+            { circulatingSupply: changes.circulatingSupply, bankReserve: changes.bankReserve, timestamp: now }
+          ],
+        }
       }
-      return p
-    }),
-  }))
+    }
+
+    // Aggiorna holdings dei player
+    const updatedPlayers = state.players.map(p => {
+      if (p.isBank) return p
+      const change = balanceChanges[p.id]
+      const newHoldings = { ...p.holdings }
+      
+      // Aggiorna holdings da assetChanges
+      for (const [assetId, changes] of Object.entries(assetChanges)) {
+        if (changes) {
+          const holding = changes.playerHoldings[p.id]
+          if (holding !== undefined) {
+            newHoldings[assetId] = holding
+          }
+        }
+      }
+      
+      return { 
+        ...p, 
+        balance: p.balance + (change ?? 0),
+        holdings: newHoldings,
+      }
+    })
+
+    return {
+      ...state,
+      workTokens: [...state.workTokens, ...newTokens],
+      events: [...state.events, ...newEvents].sort((a, b) => b.timestamp - a.timestamp).slice(0, 500),
+      tradeHistory: [...state.tradeHistory, ...newTrades].sort((a, b) => b.createdAt - a.createdAt),
+      players: updatedPlayers,
+      assets: updatedAssets,
+    }
+  })
   
   console.log('\n✅ Dati storici iniettati con successo!')
   console.log('🔄 Ricarica la pagina o controlla la Dashboard per vedere le metriche aggiornate.')
   
-  return { tokens: newTokens.length, emitted: totalEmitted, redeemed: totalRedeemed, pending: pendingValue }
+  return { 
+    tokens: newTokens.length, 
+    emitted: totalEmitted, 
+    redeemed: totalRedeemed, 
+    pending: pendingValue,
+    trades: { bankBuys: totalBankBuys, bankSells: totalBankSells, p2p: totalP2PTrades }
+  }
 }
 
 // Esponi globalmente per la console del browser
 if (typeof window !== 'undefined') {
   (window as any).seedHistory = seedHistoricalData;
   (window as any).clearHistory = () => {
-    useStore.setState(state => ({
-      ...state,
-      workTokens: [],
-      events: [],
-      players: state.players.map(p => p.isBank ? p : { ...p, balance: 100 }),
-    }))
-    console.log('🗑️ Storico cancellato, bilanci resettati a 100')
+    useStore.setState(state => {
+      // Reset asset supply to initial values
+      const resetAssets: Record<string, Asset> = {}
+      for (const [id, asset] of Object.entries(state.assets)) {
+        resetAssets[id] = {
+          ...asset,
+          circulatingSupply: 0,
+          bankReserve: asset.totalSupply ?? 100,
+          lastP2PPrice: asset.bankBuyPrice ?? asset.price,
+          supplyHistory: [{ 
+            circulatingSupply: 0, 
+            bankReserve: asset.totalSupply ?? 100, 
+            timestamp: Date.now() 
+          }],
+        }
+      }
+
+      return {
+        ...state,
+        workTokens: [],
+        events: [],
+        tradeHistory: [],
+        players: state.players.map(p => p.isBank ? p : { ...p, balance: 100, holdings: {} }),
+        assets: resetAssets,
+      }
+    })
+    console.log('🗑️ Storico cancellato, bilanci resettati a 100, supply resettati')
   };
   (window as any).store = useStore
   console.log('🎮 Casa Exchange Debug Tools:')

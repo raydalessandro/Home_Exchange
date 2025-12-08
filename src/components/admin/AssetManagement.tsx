@@ -17,10 +17,12 @@ export function AssetManagement() {
     description: '',
     price: '',
     persistent: true,
+    totalSupply: '100',
   })
 
   const handleAddAsset = () => {
     const price = parseInt(form.price)
+    const totalSupply = parseInt(form.totalSupply) || 100
     if (form.name && form.emoji && price > 0) {
       addAsset({
         name: form.name,
@@ -29,8 +31,18 @@ export function AssetManagement() {
         price,
         basePrice: price,
         persistent: form.persistent,
+        // Supply Management
+        totalSupply,
+        circulatingSupply: 0,
+        bankReserve: totalSupply,
+        // Bank Pricing
+        bankBuyPrice: price,
+        bankSellPrice: Math.round(price * 0.7), // 30% spread default
+        buybackEnabled: true,
+        // Market Data
+        lastP2PPrice: price,
       })
-      setForm({ name: '', emoji: '', description: '', price: '', persistent: true })
+      setForm({ name: '', emoji: '', description: '', price: '', persistent: true, totalSupply: '100' })
     }
   }
 
@@ -70,12 +82,20 @@ export function AssetManagement() {
             rows={2}
             className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm resize-none"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <input
               type="number"
               value={form.price}
               onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
               placeholder="Prezzo"
+              min="1"
+              className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm font-mono"
+            />
+            <input
+              type="number"
+              value={form.totalSupply}
+              onChange={e => setForm(f => ({ ...f, totalSupply: e.target.value }))}
+              placeholder="Supply"
               min="1"
               className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream placeholder-cream/40 focus:border-gold focus:outline-none text-sm font-mono"
             />

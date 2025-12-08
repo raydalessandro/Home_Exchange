@@ -17,12 +17,34 @@ export interface Asset {
   name: string
   emoji: string
   description: string
-  price: number
-  basePrice: number
-  persistent: boolean // true = doesn't burn on sell
+  
+  // Supply Management
+  totalSupply: number         // Max emettibili
+  circulatingSupply: number   // In mano ai player
+  bankReserve: number         // totalSupply - circulatingSupply
+  
+  // Bank Pricing
+  bankBuyPrice: number        // Prezzo vendita banca -> player
+  bankSellPrice: number       // Prezzo riacquisto banca <- player (0 = no buyback)
+  buybackEnabled: boolean     // Banca riacquista?
+  
+  // Market Data (legacy + new)
+  price: number               // Legacy: prezzo attuale (= bankBuyPrice)
+  basePrice: number           // Legacy: prezzo base
+  lastP2PPrice: number        // Ultimo prezzo P2P registrato
+  
+  // Meta
+  persistent: boolean         // true = doesn't burn on sell
   priceHistory: PricePoint[]
+  supplyHistory: SupplyPoint[]
   createdAt: number
   updatedAt: number
+}
+
+export interface SupplyPoint {
+  circulatingSupply: number
+  bankReserve: number
+  timestamp: number
 }
 
 export interface PricePoint {
@@ -114,6 +136,11 @@ export type EventType =
   | 'TOKEN_ISSUED'
   | 'TOKEN_REDEEMED'
   | 'TOKEN_REVOKED'
+  // Asset Supply events
+  | 'SUPPLY_CHANGED'
+  | 'BANK_PRICES_CHANGED'
+  | 'BUYBACK_TOGGLED'
+  | 'ASSET_EMITTED'
   // Calendar events
   | 'BOOKING_CREATED'
   | 'BOOKING_MARKED_DONE'
@@ -221,9 +248,15 @@ export interface AppActions {
   ) => Promise<Result<Trade, TradeError>>
 
   // Admin - Assets
-  addAsset: (asset: Omit<Asset, 'id' | 'priceHistory' | 'createdAt' | 'updatedAt'>) => void
+  addAsset: (asset: Omit<Asset, 'id' | 'priceHistory' | 'createdAt' | 'updatedAt' | 'supplyHistory'>) => void
   removeAsset: (assetId: string) => void
   setAssetPrice: (assetId: string, newPrice: number) => void
+
+  // Admin - Asset Supply Management
+  setAssetSupply: (assetId: string, newTotalSupply: number) => void
+  setBankPrices: (assetId: string, buyPrice: number, sellPrice: number) => void
+  toggleBuyback: (assetId: string, enabled: boolean) => void
+  emitAssetFromBank: (assetId: string, quantity: number) => void
 
   // Admin - Players
   giveMoney: (playerId: string, amount: number) => void
@@ -458,5 +491,13 @@ export interface EconomicMetrics {
   productivity: number // Tokens per day
   outstandingTokens: number
   redemptionRate: number
+  // Asset Supply Metrics
+  assetNominalValue: number // Circulating × bankBuyPrice
+  assetMarketValue: number // Circulating × lastP2PPrice
+  marketPremium: number // (marketValue - nominalValue) / nominalValue %
+  totalAssetSupply: number // Total supply across all assets
+  totalCirculating: number // Total circulating across all assets
+  bankReserveValue: number // Value of bank reserves
+  supplyRatio: number // circulating / totalSupply %
 }
 

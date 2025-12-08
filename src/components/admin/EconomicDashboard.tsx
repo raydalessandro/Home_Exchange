@@ -217,6 +217,52 @@ export function EconomicDashboard() {
         />
       </div>
 
+      {/* Asset Supply Stats */}
+      <Card variant="dark">
+        <CardHeader title="Supply Asset" icon={<Package size={20} />} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Supply Totale</div>
+            <div className="text-xl font-mono font-bold text-cream-50">{metrics.totalAssetSupply}</div>
+          </div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">In Circolazione</div>
+            <div className="text-xl font-mono font-bold text-emerald-400">{metrics.totalCirculating}</div>
+          </div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Riserva Banca</div>
+            <div className="text-xl font-mono font-bold text-sky-400">
+              🪙 {metrics.bankReserveValue}
+            </div>
+          </div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Supply Ratio</div>
+            <div className="text-xl font-mono font-bold text-gold">
+              {metrics.supplyRatio}%
+            </div>
+          </div>
+        </div>
+        
+        {/* Market Premium Indicator */}
+        <div className="mt-4 p-3 bg-ink-700 rounded-xl flex items-center justify-between">
+          <div>
+            <div className="text-cream-200 text-sm mb-1">Premium Mercato</div>
+            <div className="text-xs text-cream-300">
+              Differenza tra prezzo P2P e prezzo banca
+            </div>
+          </div>
+          <div className={cn(
+            "text-2xl font-mono font-bold",
+            metrics.marketPremium > 20 ? 'text-red-400' :
+            metrics.marketPremium > 10 ? 'text-amber-400' :
+            metrics.marketPremium > 0 ? 'text-emerald-400' :
+            'text-cream-50'
+          )}>
+            {metrics.marketPremium > 0 ? '+' : ''}{metrics.marketPremium}%
+          </div>
+        </div>
+      </Card>
+
       {/* System Stats */}
       <Card variant="dark">
         <CardHeader title="Statistiche Sistema" icon={<Users size={20} />} />

@@ -8,6 +8,7 @@ import { TokenManagement } from './TokenManagement'
 import { MarketControls } from './MarketControls'
 import { WorkPriceControls } from './WorkPriceControls'
 import { AssetManagement } from './AssetManagement'
+import { AssetSupplyControls } from './AssetSupplyControls'
 import { PlayersManagement } from './PlayersManagement'
 import { EventLog } from './EventLog'
 import { InactivityPanel } from './InactivityPanel'
@@ -41,7 +42,12 @@ export function AdminView() {
           </div>
         )
       case 'assets':
-        return <AssetManagement />
+        return (
+          <div className="space-y-6 sm:space-y-8">
+            <AssetSupplyControls />
+            <AssetManagement />
+          </div>
+        )
       case 'players':
         return <PlayersManagement />
       case 'market':

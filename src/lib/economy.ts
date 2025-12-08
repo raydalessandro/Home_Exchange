@@ -99,6 +99,57 @@ export function getInflationTrend(inflation: number): 'LOW' | 'MEDIUM' | 'HIGH' 
 }
 
 /**
+ * Calculate asset nominal value based on circulating supply and bank buy price
+ */
+export function calculateAssetNominalValue(assets: Record<string, Asset>): number {
+  return Object.values(assets).reduce((sum, asset) => {
+    const circulating = asset.circulatingSupply ?? 0
+    const bankPrice = asset.bankBuyPrice ?? asset.price
+    return sum + circulating * bankPrice
+  }, 0)
+}
+
+/**
+ * Calculate asset market value based on circulating supply and last P2P price
+ */
+export function calculateAssetMarketValue(assets: Record<string, Asset>): number {
+  return Object.values(assets).reduce((sum, asset) => {
+    const circulating = asset.circulatingSupply ?? 0
+    const marketPrice = asset.lastP2PPrice ?? asset.bankBuyPrice ?? asset.price
+    return sum + circulating * marketPrice
+  }, 0)
+}
+
+/**
+ * Calculate total asset supply across all assets
+ */
+export function calculateTotalAssetSupply(assets: Record<string, Asset>): number {
+  return Object.values(assets).reduce((sum, asset) => {
+    return sum + (asset.totalSupply ?? 0)
+  }, 0)
+}
+
+/**
+ * Calculate total circulating supply across all assets
+ */
+export function calculateTotalCirculating(assets: Record<string, Asset>): number {
+  return Object.values(assets).reduce((sum, asset) => {
+    return sum + (asset.circulatingSupply ?? 0)
+  }, 0)
+}
+
+/**
+ * Calculate bank reserve value
+ */
+export function calculateBankReserveValue(assets: Record<string, Asset>): number {
+  return Object.values(assets).reduce((sum, asset) => {
+    const reserve = asset.bankReserve ?? 0
+    const bankPrice = asset.bankBuyPrice ?? asset.price
+    return sum + reserve * bankPrice
+  }, 0)
+}
+
+/**
  * Calculate all economic metrics
  */
 export function calculateEconomicMetrics(
@@ -113,13 +164,31 @@ export function calculateEconomicMetrics(
   const M2 = M1 + unredeemedValue
   const totalAssetValue = calculateTotalAssetValue(players, assets)
   
-  // NEW: Work production = value of completed/redeemed work
+  // Asset supply metrics
+  const assetNominalValue = calculateAssetNominalValue(assets)
+  const assetMarketValue = calculateAssetMarketValue(assets)
+  const totalAssetSupply = calculateTotalAssetSupply(assets)
+  const totalCirculating = calculateTotalCirculating(assets)
+  const bankReserveValue = calculateBankReserveValue(assets)
+  
+  // Market premium (speculation indicator)
+  const marketPremium = assetNominalValue > 0 
+    ? ((assetMarketValue - assetNominalValue) / assetNominalValue) * 100 
+    : 0
+  
+  // Supply ratio (how much of total supply is circulating)
+  const supplyRatio = totalAssetSupply > 0 
+    ? (totalCirculating / totalAssetSupply) * 100 
+    : 0
+  
+  // Work production = value of completed/redeemed work
   const workProduction = calculateWorkProduction(workTokens)
   
-  // NEW: Economy value = goods + services
-  const economyValue = calculateEconomyValue(totalAssetValue, workProduction)
+  // Economy value = asset nominal value + work production
+  // Using nominal value (bank prices) for stability
+  const economyValue = assetNominalValue + workProduction
   
-  // NEW: Inflation uses economyValue (not just assets)
+  // Inflation uses economyValue (not market value to avoid volatility)
   const inflation = calculateInflation(M2, economyValue)
   
   // GDP = total work tokens issued (count)
@@ -158,6 +227,14 @@ export function calculateEconomicMetrics(
     productivity: parseFloat(productivity.toFixed(2)),
     outstandingTokens,
     redemptionRate: parseFloat(redemptionRate.toFixed(2)),
+    // New supply metrics
+    assetNominalValue,
+    assetMarketValue,
+    marketPremium: parseFloat(marketPremium.toFixed(2)),
+    totalAssetSupply,
+    totalCirculating,
+    bankReserveValue,
+    supplyRatio: parseFloat(supplyRatio.toFixed(2)),
   }
 }
 
