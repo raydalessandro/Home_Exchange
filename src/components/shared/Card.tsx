@@ -81,15 +81,15 @@ interface StatCardProps {
 export function StatCard({ label, value, icon, trend, subtext, variant = 'default' }: StatCardProps) {
   const variants = {
     default: 'bg-ink-800 border-ink-700',
-    gold: 'bg-gold/10 border-gold/30',
-    success: 'bg-emerald-500/10 border-emerald-500/30',
-    warning: 'bg-amber-500/10 border-amber-500/30',
-    danger: 'bg-red-500/10 border-red-500/30',
+    gold: 'bg-ink-800 border-gold/40',
+    success: 'bg-ink-800 border-emerald-500/40',
+    warning: 'bg-ink-800 border-amber-500/40',
+    danger: 'bg-ink-800 border-red-500/40',
   }
 
   const valueColors = {
-    default: 'text-cream',
-    gold: 'text-gold',
+    default: 'text-cream-50',
+    gold: 'text-gold-400',
     success: 'text-emerald-400',
     warning: 'text-amber-400',
     danger: 'text-red-400',
@@ -100,7 +100,7 @@ export function StatCard({ label, value, icon, trend, subtext, variant = 'defaul
       'rounded-xl sm:rounded-2xl border p-4 sm:p-5 transition-all',
       variants[variant]
     )}>
-      <div className="flex items-center gap-2 text-cream/60 text-sm mb-2">
+      <div className="flex items-center gap-2 text-cream-200 text-sm mb-2">
         {icon}
         <span>{label}</span>
       </div>
@@ -108,7 +108,7 @@ export function StatCard({ label, value, icon, trend, subtext, variant = 'defaul
         {value}
       </div>
       {subtext && (
-        <div className="text-xs text-cream/40 mt-1">{subtext}</div>
+        <div className="text-xs text-cream-200 mt-1">{subtext}</div>
       )}
     </div>
   )

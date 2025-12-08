@@ -144,14 +144,14 @@ export function EconomicDashboard() {
       <Card variant="dark" className={cn('border', getInflationBg(metrics.inflation))}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-cream/60 text-sm mb-2">
+            <div className="flex items-center gap-2 text-cream-100 text-sm mb-2">
               <Activity size={16} />
               <span>Inflazione</span>
             </div>
             <div className={cn('text-3xl sm:text-4xl font-mono font-bold', getInflationColor(metrics.inflation))}>
               {metrics.inflation > 0 ? '+' : ''}{metrics.inflation}%
             </div>
-            <div className="flex items-center gap-2 text-cream/60 mt-2">
+            <div className="flex items-center gap-2 text-cream-100 mt-2">
               <InflationIcon size={16} />
               <span>{inflationInfo.text}</span>
             </div>
@@ -221,32 +221,32 @@ export function EconomicDashboard() {
       <Card variant="dark">
         <CardHeader title="Statistiche Sistema" icon={<Users size={20} />} />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-          <div className="p-3 bg-ink-700/50 rounded-xl">
-            <div className="text-cream/50 mb-1">Giocatori</div>
-            <div className="text-xl font-mono font-semibold text-cream">{metrics.playerCount}</div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Giocatori</div>
+            <div className="text-xl font-mono font-bold text-cream-50">{metrics.playerCount}</div>
           </div>
-          <div className="p-3 bg-ink-700/50 rounded-xl">
-            <div className="text-cream/50 mb-1">Trade Totali</div>
-            <div className="text-xl font-mono font-semibold text-cream">{metrics.totalTrades}</div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Trade Totali</div>
+            <div className="text-xl font-mono font-bold text-cream-50">{metrics.totalTrades}</div>
           </div>
-          <div className="p-3 bg-ink-700/50 rounded-xl">
-            <div className="text-cream/50 mb-1">Gettoni Outstanding</div>
-            <div className="text-xl font-mono font-semibold text-amber-400">{metrics.outstandingTokens}</div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Gettoni Outstanding</div>
+            <div className="text-xl font-mono font-bold text-amber-400">{metrics.outstandingTokens}</div>
           </div>
-          <div className="p-3 bg-ink-700/50 rounded-xl">
-            <div className="text-cream/50 mb-1">Valore Pending</div>
-            <div className="text-xl font-mono font-semibold text-amber-400">🪙 {metrics.unredeemedValue}</div>
+          <div className="p-3 bg-ink-700 rounded-xl">
+            <div className="text-cream-200 mb-1">Valore Pending</div>
+            <div className="text-xl font-mono font-bold text-amber-400">🪙 {metrics.unredeemedValue}</div>
           </div>
         </div>
       </Card>
 
       {/* Test Panel - Seed Historical Data */}
-      <Card variant="dark" className="border border-purple-500/30 bg-purple-500/5">
+      <Card variant="dark" className="border border-purple-500/40 bg-ink-800">
         <CardHeader 
           title="🧪 Test: Genera Storico" 
           icon={<FlaskConical size={20} className="text-purple-400" />}
         />
-        <p className="text-cream/60 text-sm mb-4">
+        <p className="text-cream-100 text-sm mb-4">
           Simula attività passate per testare le metriche economiche. 
           Genera token di lavoro, riscossioni e variazioni di bilancio.
         </p>
@@ -291,8 +291,8 @@ export function EconomicDashboard() {
         </div>
         
         {workTokens.length > 0 && (
-          <div className="flex items-center justify-between pt-3 border-t border-purple-500/20">
-            <span className="text-cream/60 text-sm">
+          <div className="flex items-center justify-between pt-3 border-t border-purple-500/30">
+            <span className="text-cream-100 text-sm">
               📊 {workTokens.length} token nello storico
             </span>
             <Button
