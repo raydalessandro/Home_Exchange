@@ -65,14 +65,14 @@ export function WorkPriceControls() {
       />
 
       {/* Market Events */}
-      <Card variant="dark" className="border border-amber-500/30 bg-amber-500/5">
+      <Card variant="dark" className="border border-amber-500/40 bg-ink-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <div className="font-medium text-cream mb-1 flex items-center gap-2">
-              <Sliders size={16} className="text-amber-400" />
+            <div className="font-semibold text-amber-400 mb-1 flex items-center gap-2">
+              <Sliders size={16} />
               Eventi Mercato Lavoro
             </div>
-            <p className="text-cream/60 text-sm">
+            <p className="text-cream-100 text-sm">
               Applica variazioni globali a tutti i prezzi dei lavori
             </p>
           </div>
@@ -115,8 +115,8 @@ export function WorkPriceControls() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{category.emoji}</span>
                 <div className="text-left">
-                  <div className="font-medium text-cream">{category.name}</div>
-                  <div className="text-xs text-cream/50">
+                  <div className="font-semibold text-cream-50">{category.name}</div>
+                  <div className="text-xs text-cream-200">
                     {category.templates.length} lavori
                   </div>
                 </div>
@@ -130,21 +130,21 @@ export function WorkPriceControls() {
                 >
                   <button
                     onClick={() => handleMultiplierChange(category.id, -0.1)}
-                    className="w-7 h-7 rounded-lg bg-ink-700 hover:bg-ink-600 flex items-center justify-center text-cream/70 hover:text-cream transition-colors"
+                    className="w-7 h-7 rounded-lg bg-ink-600 hover:bg-ink-500 flex items-center justify-center text-cream-50 font-bold transition-colors"
                   >
                     -
                   </button>
                   <span className={cn(
-                    'font-mono text-sm min-w-[50px] text-center',
+                    'font-mono text-sm min-w-[50px] text-center font-bold',
                     multiplier > 1 ? 'text-emerald-400' :
                     multiplier < 1 ? 'text-red-400' :
-                    'text-cream'
+                    'text-cream-50'
                   )}>
                     {multiplier.toFixed(1)}x
                   </span>
                   <button
                     onClick={() => handleMultiplierChange(category.id, 0.1)}
-                    className="w-7 h-7 rounded-lg bg-ink-700 hover:bg-ink-600 flex items-center justify-center text-cream/70 hover:text-cream transition-colors"
+                    className="w-7 h-7 rounded-lg bg-ink-600 hover:bg-ink-500 flex items-center justify-center text-cream-50 font-bold transition-colors"
                   >
                     +
                   </button>
@@ -176,8 +176,8 @@ export function WorkPriceControls() {
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{template.emoji}</span>
                         <div>
-                          <div className="text-sm text-cream">{template.name}</div>
-                          <div className="text-xs text-cream/40">
+                          <div className="text-sm text-cream-50 font-medium">{template.name}</div>
+                          <div className="text-xs text-cream-200">
                             Base: 🪙{template.baseValue}
                           </div>
                         </div>
@@ -214,8 +214,8 @@ export function WorkPriceControls() {
                         ) : (
                           <>
                             <span className={cn(
-                              'font-mono text-lg',
-                              priceChanged ? 'text-gold' : 'text-cream'
+                              'font-mono text-lg font-bold',
+                              priceChanged ? 'text-gold-400' : 'text-cream-50'
                             )}>
                               🪙{currentValue}
                             </span>
@@ -232,7 +232,7 @@ export function WorkPriceControls() {
                             )}
                             <button
                               onClick={() => handleStartEdit(category.id, template.id, currentValue)}
-                              className="w-7 h-7 rounded bg-ink-700 hover:bg-ink-600 flex items-center justify-center text-cream/50 hover:text-cream transition-colors"
+                              className="w-7 h-7 rounded bg-ink-600 hover:bg-ink-500 flex items-center justify-center text-cream-100 hover:text-white transition-colors"
                             >
                               <Edit3 size={14} />
                             </button>
@@ -250,13 +250,13 @@ export function WorkPriceControls() {
       </div>
 
       {/* Info Box */}
-      <Card variant="dark" className="bg-sky-500/5 border-sky-500/20">
-        <div className="text-sm text-cream/70">
-          <div className="font-medium text-sky-400 mb-2">Come funziona:</div>
-          <ul className="space-y-1 text-cream/60">
-            <li>• Il <strong>moltiplicatore categoria</strong> modifica tutti i template della categoria</li>
-            <li>• Puoi anche modificare il <strong>prezzo singolo</strong> di ogni template</li>
-            <li>• Gli <strong>eventi mercato</strong> applicano variazioni globali (+20% o -20%)</li>
+      <Card variant="dark" className="bg-ink-800 border-sky-500/30">
+        <div className="text-sm">
+          <div className="font-semibold text-sky-400 mb-2">Come funziona:</div>
+          <ul className="space-y-1 text-cream-100">
+            <li>• Il <strong className="text-cream-50">moltiplicatore categoria</strong> modifica tutti i template della categoria</li>
+            <li>• Puoi anche modificare il <strong className="text-cream-50">prezzo singolo</strong> di ogni template</li>
+            <li>• Gli <strong className="text-cream-50">eventi mercato</strong> applicano variazioni globali (+20% o -20%)</li>
             <li>• Abbassare i prezzi = meno inflazione (meno moneta emessa per lavoro)</li>
           </ul>
         </div>

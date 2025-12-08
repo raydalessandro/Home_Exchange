@@ -27,12 +27,12 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variants = {
-    primary: 'bg-gradient-to-r from-gold-400 to-gold-500 text-ink-900 hover:from-gold-500 hover:to-gold-600 shadow-md shadow-gold/20 font-semibold',
-    secondary: 'bg-ink-700 text-cream hover:bg-ink-600 border border-ink-600',
-    danger: 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-md shadow-red-500/20',
-    success: 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-md shadow-emerald-500/20',
-    ghost: 'bg-transparent text-cream/70 hover:bg-ink-800 hover:text-cream',
-    outline: 'bg-transparent border-2 border-gold/50 text-gold hover:bg-gold/10 hover:border-gold',
+    primary: 'bg-gradient-to-r from-gold-400 to-gold-500 text-ink-900 hover:from-gold-500 hover:to-gold-600 shadow-md shadow-gold/20 font-bold',
+    secondary: 'bg-ink-700 text-cream-50 hover:bg-ink-600 border border-ink-500 font-medium',
+    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-600/30 font-bold',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/30 font-bold',
+    ghost: 'bg-transparent text-cream-100 hover:bg-ink-700 hover:text-white',
+    outline: 'bg-transparent border-2 border-gold text-gold-400 hover:bg-gold/20 hover:border-gold-300 font-medium',
   }
 
   const sizes = {
