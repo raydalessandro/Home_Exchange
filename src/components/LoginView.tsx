@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useStore } from '@/store'
+import { LEVELS, getPlayerLevel } from '@/lib/levels'
 import { Building2, Crown, Sparkles } from 'lucide-react'
 
 export function LoginView() {
@@ -65,10 +66,14 @@ export function LoginView() {
                 <span className="font-medium text-sm sm:text-base text-ink-700 group-hover:text-gold-600 transition-colors text-center">
                   {player.name}
                 </span>
-                {player.isAdmin && (
+                {player.isAdmin ? (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-gradient-to-r from-gold-400 to-gold-500 text-ink-900 font-bold">
                     <Crown className="w-3 h-3" />
                     Admin
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-ink-100 text-ink-600 font-medium">
+                    {LEVELS[getPlayerLevel(player)].emoji} {LEVELS[getPlayerLevel(player)].name}
                   </span>
                 )}
               </button>

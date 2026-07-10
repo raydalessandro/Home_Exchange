@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import type { TraderTab } from '@/types'
+import { getFeatures, getPlayerLevel } from '@/lib/levels'
 import { cn } from '@/lib/cn'
 import { ShoppingCart, Ticket, BarChart3, Calendar, type LucideIcon } from 'lucide-react'
 
@@ -13,7 +14,7 @@ interface TabItem {
   icon: LucideIcon
 }
 
-const tabItems: TabItem[] = [
+const allTabItems: TabItem[] = [
   { id: 'market', label: 'Mercato', icon: ShoppingCart },
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'tokens', label: 'Gettoni', icon: Ticket },
@@ -25,7 +26,22 @@ export function TraderTabs() {
   const setTraderTab = useStore(state => state.setTraderTab)
   const currentUser = useStore(state => state.currentUser)
   const workTokens = useStore(useShallow(state => state.workTokens))
-  
+
+  const features = getFeatures(getPlayerLevel(currentUser))
+
+  const tabItems = useMemo(() => allTabItems.filter(tab => {
+    if (tab.id === 'calendar') return features.canCalendar
+    if (tab.id === 'stats') return features.canStats
+    return true
+  }), [features.canCalendar, features.canStats])
+
+  // Se la tab attiva non è più disponibile (es. livello abbassato), torna al mercato
+  useEffect(() => {
+    if (!tabItems.some(t => t.id === traderTab)) {
+      setTraderTab('market')
+    }
+  }, [tabItems, traderTab, setTraderTab])
+
   const unredeemedTokens = useMemo(() => {
     if (!currentUser) return []
     return workTokens.filter(t => t.issuedTo === currentUser.id && !t.redeemed)

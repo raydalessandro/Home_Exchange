@@ -1,5 +1,11 @@
 // ==================== CORE ENTITIES ====================
 
+/**
+ * Livello di crescita del giocatore (1 = più piccolo, 4 = esperienza completa).
+ * Config e feature-gate in src/lib/levels.ts
+ */
+export type PlayerLevel = 1 | 2 | 3 | 4
+
 export interface Player {
   id: string
   name: string
@@ -8,6 +14,7 @@ export interface Player {
   holdings: Record<string, number> // assetId -> quantity
   isBank?: boolean
   isAdmin?: boolean
+  level?: PlayerLevel // assente = 4 (comportamento pre-livelli)
   createdAt: number
   updatedAt: number
 }
@@ -35,6 +42,8 @@ export interface Asset {
   
   // Meta
   persistent: boolean         // true = doesn't burn on sell
+  active?: boolean            // false = archiviato, non visibile ai trader
+  minLevel?: PlayerLevel      // visibile dal livello indicato in su (default 1)
   priceHistory: PricePoint[]
   supplyHistory: SupplyPoint[]
   createdAt: number
@@ -148,6 +157,9 @@ export type EventType =
   | 'BOOKING_CANCELLED'
   | 'COLLAB_PAYMENT'
   | 'INACTIVITY_PENALTY'
+  // Levels & Catalog
+  | 'LEVEL_CHANGED'
+  | 'CATALOG_CHANGED'
 
 export interface AppEvent {
   id: string
@@ -261,6 +273,7 @@ export interface AppActions {
   // Admin - Players
   giveMoney: (playerId: string, amount: number) => void
   takeMoney: (playerId: string, amount: number) => void
+  setPlayerLevel: (playerId: string, level: PlayerLevel) => void
 
   // Admin - Market
   triggerMarketEvent: (event: MarketEventType) => void
@@ -283,6 +296,23 @@ export interface AppActions {
   setTemplatePrice: (categoryId: string, templateId: string, newValue: number) => void
   setCategoryMultiplier: (categoryId: string, multiplier: number) => void
   triggerWorkMarketEvent: (event: WorkMarketEventType) => void
+
+  // Catalog Management (Admin) - attività e premi modulari
+  addWorkTemplate: (categoryId: string, params: {
+    name: string
+    emoji: string
+    baseValue: number
+    minLevel?: PlayerLevel
+  }) => void
+  removeWorkTemplate: (categoryId: string, templateId: string) => void
+  setTemplateAvailability: (categoryId: string, templateId: string, params: {
+    active?: boolean
+    minLevel?: PlayerLevel
+  }) => void
+  setAssetAvailability: (assetId: string, params: {
+    active?: boolean
+    minLevel?: PlayerLevel
+  }) => void
 
   // Calendar Module
   createBooking: (params: {
@@ -360,6 +390,8 @@ export interface WorkTemplate {
   emoji: string
   baseValue: number        // Prezzo iniziale di riferimento
   currentValue: number     // Prezzo attuale (modificabile admin)
+  active?: boolean         // false = archiviato, non prenotabile
+  minLevel?: PlayerLevel   // visibile dal livello indicato in su (default 1)
   priceHistory: PricePoint[]
 }
 

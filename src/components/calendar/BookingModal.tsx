@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useStore } from '@/store'
+import { getFeatures, getPlayerLevel, isTemplateVisible } from '@/lib/levels'
 import { Modal } from '@/components/shared/Modal'
 import { Button } from '@/components/shared/Button'
 import { Card } from '@/components/shared/Card'
@@ -37,9 +38,19 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
   const [step, setStep] = useState<'category' | 'template' | 'collaborators'>('category')
 
   // Get non-bank, non-current-user players for collaborator selection
-  const otherPlayers = players.filter(p => 
+  const otherPlayers = players.filter(p =>
     !p.isBank && p.id !== currentUser?.id
   )
+
+  // Livello del giocatore: filtra le attività visibili e la funzione collaboratori
+  const playerLevel = getPlayerLevel(currentUser)
+  const features = getFeatures(playerLevel)
+  const visibleCategories = workCategories
+    .map(category => ({
+      ...category,
+      templates: category.templates.filter(t => isTemplateVisible(t, playerLevel)),
+    }))
+    .filter(category => category.templates.length > 0)
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId)
@@ -98,7 +109,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
     }
   }
 
-  const selectedCategoryData = workCategories.find(c => c.id === selectedCategory)
+  const selectedCategoryData = visibleCategories.find(c => c.id === selectedCategory)
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} showHeader={false}>
@@ -157,7 +168,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
         {step === 'category' && (
           <div className="space-y-3">
             <h3 className="text-cream-100 font-medium mb-3">Scegli categoria:</h3>
-            {workCategories.map(category => (
+            {visibleCategories.map(category => (
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category.id)}
@@ -234,7 +245,8 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
               </div>
             </Card>
 
-            {/* Collaborators */}
+            {/* Collaborators - solo dal livello Mercante in su */}
+            {features.canCollaborate && (
             <div>
               <h3 className="text-cream-100 font-medium mb-3 flex items-center gap-2">
                 <Users size={18} />
@@ -278,6 +290,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
                 ))}
               </div>
             </div>
+            )}
 
             {/* Confirm button */}
             <Button

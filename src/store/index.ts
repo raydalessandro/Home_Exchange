@@ -26,7 +26,10 @@ import type {
   TraderTab,
   EconomicMetrics,
   AppEvent,
+  PlayerLevel,
+  WorkTemplate,
 } from '@/types'
+import { LEVELS } from '@/lib/levels'
 import { QUALITY_MULTIPLIERS } from '@/types'
 import { initialState, initialPlayers, initialAssets } from '@/types/state'
 import { createTradeError } from '@/types/errors'
@@ -681,6 +684,40 @@ export const useStore = create<Store>()(
         )
       },
 
+      setPlayerLevel: (playerId: string, level: PlayerLevel) => {
+        const state = get()
+        const player = state.players.find(p => p.id === playerId)
+
+        if (!state.currentUser?.isAdmin) {
+          get().showToast({ message: 'Solo admin può cambiare i livelli', type: 'error' })
+          return
+        }
+        if (!player || player.isBank || player.isAdmin) return
+
+        set(state => {
+          const p = state.players.find(pl => pl.id === playerId)
+          if (p) {
+            p.level = level
+            p.updatedAt = Date.now()
+            if (state.currentUser?.id === playerId) {
+              state.currentUser = p
+            }
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        const levelInfo = LEVELS[level]
+        get().logEvent(
+          'LEVEL_CHANGED',
+          `${levelInfo.emoji} ${player.emoji} ${player.name} è ora livello ${level} - ${levelInfo.name}`,
+          { playerId, level }
+        )
+        get().showToast({
+          message: `${player.name} → ${levelInfo.emoji} ${levelInfo.name}`,
+          type: 'success',
+        })
+      },
+
       // ==================== ADMIN - MARKET ====================
       triggerMarketEvent: (eventType: MarketEventType) => {
         const multipliers: Record<MarketEventType, number> = {
@@ -1055,6 +1092,115 @@ export const useStore = create<Store>()(
         )
         get().sendAnnouncement(`${emoji} ${label}!`)
         get().showToast({ message: label, type: event === 'WORK_BOOM' ? 'success' : 'warning' })
+      },
+
+      // ==================== CATALOG MANAGEMENT (ADMIN) ====================
+      // Attività e premi modulari: si aggiungono/archiviano nel tempo
+      // e si legano a un livello minimo, senza toccare il codice.
+
+      addWorkTemplate: (categoryId, params) => {
+        const { name, emoji, baseValue, minLevel } = params
+        if (!name.trim() || baseValue < 1) {
+          get().showToast({ message: 'Nome e valore (min 1) obbligatori', type: 'error' })
+          return
+        }
+
+        const category = get().workCategories.find(c => c.id === categoryId)
+        if (!category) return
+
+        const template: WorkTemplate = {
+          id: `custom_${uuidv4().slice(0, 8)}`,
+          name: name.trim(),
+          emoji: emoji.trim() || '📝',
+          baseValue,
+          currentValue: baseValue,
+          active: true,
+          minLevel: minLevel ?? 1,
+          priceHistory: [{ price: baseValue, timestamp: Date.now() }],
+        }
+
+        set(state => {
+          const c = state.workCategories.find(cat => cat.id === categoryId)
+          if (c) c.templates.push(template)
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'CATALOG_CHANGED',
+          `➕ Nuova attività: ${template.emoji} ${template.name} (🪙${baseValue}) in ${category.emoji} ${category.name}`,
+          { categoryId, templateId: template.id }
+        )
+        get().showToast({ message: `Attività "${template.name}" aggiunta!`, type: 'success' })
+      },
+
+      removeWorkTemplate: (categoryId, templateId) => {
+        const category = get().workCategories.find(c => c.id === categoryId)
+        const template = category?.templates.find(t => t.id === templateId)
+        if (!category || !template) return
+
+        set(state => {
+          const c = state.workCategories.find(cat => cat.id === categoryId)
+          if (c) c.templates = c.templates.filter(t => t.id !== templateId)
+          state.lastUpdated = Date.now()
+        })
+
+        get().logEvent(
+          'CATALOG_CHANGED',
+          `🗑️ Attività eliminata: ${template.emoji} ${template.name}`,
+          { categoryId, templateId }
+        )
+        get().showToast({ message: `Attività "${template.name}" eliminata`, type: 'info' })
+      },
+
+      setTemplateAvailability: (categoryId, templateId, params) => {
+        const category = get().workCategories.find(c => c.id === categoryId)
+        const template = category?.templates.find(t => t.id === templateId)
+        if (!category || !template) return
+
+        set(state => {
+          const c = state.workCategories.find(cat => cat.id === categoryId)
+          const t = c?.templates.find(tpl => tpl.id === templateId)
+          if (t) {
+            if (params.active !== undefined) t.active = params.active
+            if (params.minLevel !== undefined) t.minLevel = params.minLevel
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        const parts: string[] = []
+        if (params.active !== undefined) parts.push(params.active ? 'attivata' : 'archiviata')
+        if (params.minLevel !== undefined) parts.push(`da livello ${LEVELS[params.minLevel].emoji} ${params.minLevel}`)
+
+        get().logEvent(
+          'CATALOG_CHANGED',
+          `⚙️ ${template.emoji} ${template.name}: ${parts.join(', ')}`,
+          { categoryId, templateId, ...params }
+        )
+      },
+
+      setAssetAvailability: (assetId, params) => {
+        const asset = get().assets[assetId]
+        if (!asset) return
+
+        set(state => {
+          const a = state.assets[assetId]
+          if (a) {
+            if (params.active !== undefined) a.active = params.active
+            if (params.minLevel !== undefined) a.minLevel = params.minLevel
+            a.updatedAt = Date.now()
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        const parts: string[] = []
+        if (params.active !== undefined) parts.push(params.active ? 'attivato' : 'archiviato')
+        if (params.minLevel !== undefined) parts.push(`da livello ${LEVELS[params.minLevel].emoji} ${params.minLevel}`)
+
+        get().logEvent(
+          'CATALOG_CHANGED',
+          `⚙️ ${asset.emoji} ${asset.name}: ${parts.join(', ')}`,
+          { assetId, ...params }
+        )
       },
 
       // ==================== CALENDAR MODULE ====================

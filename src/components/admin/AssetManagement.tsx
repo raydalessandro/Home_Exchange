@@ -2,14 +2,18 @@
 
 import { useState } from 'react'
 import { useStore } from '@/store'
+import type { PlayerLevel } from '@/types'
+import { LEVELS } from '@/lib/levels'
 import { Card, CardHeader } from '@/components/shared/Card'
 import { Button } from '@/components/shared/Button'
-import { Palette, Plus, Trash2, Lock, Flame } from 'lucide-react'
+import { cn } from '@/lib/cn'
+import { Palette, Plus, Trash2, Lock, Flame, Eye, EyeOff } from 'lucide-react'
 
 export function AssetManagement() {
   const assets = useStore(state => state.assets)
   const addAsset = useStore(state => state.addAsset)
   const removeAsset = useStore(state => state.removeAsset)
+  const setAssetAvailability = useStore(state => state.setAssetAvailability)
   
   const [form, setForm] = useState({
     name: '',
@@ -120,33 +124,67 @@ export function AssetManagement() {
         {/* Asset List */}
         <div>
           <h3 className="text-sm font-medium text-cream/60 mb-2">Asset Esistenti:</h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto scrollbar-thin">
-            {Object.values(assets).map(asset => (
+          <div className="space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
+            {Object.values(assets).map(asset => {
+              const isActive = asset.active ?? true
+              const minLevel = asset.minLevel ?? 1
+              return (
               <div
                 key={asset.id}
-                className="flex items-center justify-between p-3 
-                           bg-ink-700/50 rounded-xl border border-ink-600"
+                className={cn(
+                  'flex items-center justify-between p-3 bg-ink-700/50 rounded-xl border border-ink-600',
+                  !isActive && 'opacity-40'
+                )}
               >
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="text-xl sm:text-2xl">{asset.emoji}</span>
                   <div>
-                    <span className="font-medium text-cream text-sm sm:text-base">{asset.name}</span>
+                    <span className="font-medium text-cream text-sm sm:text-base">
+                      {asset.name}
+                      {!isActive && <span className="ml-2 text-xs text-red-400">(archiviato)</span>}
+                    </span>
                     <span className="text-gold ml-2 font-mono text-sm">🪙{asset.price}</span>
                   </div>
                   <span className="text-cream/40">
                     {asset.persistent ? <Lock size={14} /> : <Flame size={14} />}
                   </span>
                 </div>
-                <Button
-                  variant="danger"
-                  size="xs"
-                  onClick={() => handleRemoveAsset(asset.id)}
-                  icon={Trash2}
-                >
-                  <span className="hidden sm:inline">Elimina</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Livello minimo: click per cambiare */}
+                  <button
+                    onClick={() => setAssetAvailability(asset.id, {
+                      minLevel: (minLevel >= 4 ? 1 : minLevel + 1) as PlayerLevel,
+                    })}
+                    title={`Visibile dal livello ${LEVELS[minLevel].name} in su (click per cambiare)`}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ink-600 hover:bg-ink-500 text-xs text-cream-100 transition-colors"
+                  >
+                    {LEVELS[minLevel].emoji} Lv{minLevel}+
+                  </button>
+                  {/* Attiva/archivia */}
+                  <button
+                    onClick={() => setAssetAvailability(asset.id, { active: !isActive })}
+                    title={isActive ? 'Archivia (nascondi ai bambini)' : 'Riattiva'}
+                    className={cn(
+                      'w-7 h-7 rounded flex items-center justify-center transition-colors',
+                      isActive
+                        ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                        : 'bg-ink-600 text-cream/40 hover:bg-ink-500'
+                    )}
+                  >
+                    {isActive ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                  <Button
+                    variant="danger"
+                    size="xs"
+                    onClick={() => handleRemoveAsset(asset.id)}
+                    icon={Trash2}
+                  >
+                    <span className="hidden sm:inline">Elimina</span>
+                  </Button>
+                </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </Card>
