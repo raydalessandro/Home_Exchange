@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useStore } from '@/store'
+import { getFeatures, getPlayerLevel, isTemplateVisible } from '@/lib/levels'
 import { Modal } from '@/components/shared/Modal'
 import { Button } from '@/components/shared/Button'
 import { Card } from '@/components/shared/Card'
@@ -35,11 +36,27 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
   } | null>(null)
   const [selectedCollaborators, setSelectedCollaborators] = useState<string[]>([])
   const [step, setStep] = useState<'category' | 'template' | 'collaborators'>('category')
+  // Admin: a chi assegnare la missione (default: se stesso)
+  const [forPlayerId, setForPlayerId] = useState<string>('')
 
   // Get non-bank, non-current-user players for collaborator selection
-  const otherPlayers = players.filter(p => 
+  const otherPlayers = players.filter(p =>
     !p.isBank && p.id !== currentUser?.id
   )
+
+  // Livello del giocatore: filtra le attività visibili e la funzione collaboratori
+  const playerLevel = getPlayerLevel(currentUser)
+  const features = getFeatures(playerLevel)
+  const visibleCategories = workCategories
+    .map(category => ({
+      ...category,
+      templates: category.templates.filter(t => isTemplateVisible(t, playerLevel)),
+    }))
+    .filter(category => category.templates.length > 0)
+
+  // Admin: lista figli a cui assegnare la missione
+  const assignablePlayers = players.filter(p => !p.isBank && !p.isAdmin)
+  const isAdmin = Boolean(currentUser?.isAdmin)
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId)
@@ -75,6 +92,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
       baseValue: selectedTemplate.value,
       scheduledDate: selectedDate,
       collaboratorIds: selectedCollaborators.length > 0 ? selectedCollaborators : undefined,
+      forPlayerId: forPlayerId || undefined,
     })
 
     handleClose()
@@ -85,6 +103,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
     setSelectedTemplate(null)
     setSelectedCollaborators([])
     setStep('category')
+    setForPlayerId('')
     onClose()
   }
 
@@ -98,7 +117,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
     }
   }
 
-  const selectedCategoryData = workCategories.find(c => c.id === selectedCategory)
+  const selectedCategoryData = visibleCategories.find(c => c.id === selectedCategory)
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} showHeader={false}>
@@ -156,8 +175,28 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
         {/* Step Content */}
         {step === 'category' && (
           <div className="space-y-3">
+            {/* Admin: assegna la missione a un figlio */}
+            {isAdmin && assignablePlayers.length > 0 && (
+              <div className="mb-4">
+                <label className="text-cream-100 font-medium block mb-2">
+                  ⭐ Assegna a:
+                </label>
+                <select
+                  value={forPlayerId}
+                  onChange={e => setForPlayerId(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-ink-700 border border-ink-600 rounded-xl text-cream focus:border-gold focus:outline-none"
+                >
+                  <option value="">Me stesso ({currentUser?.name})</option>
+                  {assignablePlayers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.emoji} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <h3 className="text-cream-100 font-medium mb-3">Scegli categoria:</h3>
-            {workCategories.map(category => (
+            {visibleCategories.map(category => (
               <button
                 key={category.id}
                 onClick={() => handleCategorySelect(category.id)}
@@ -234,7 +273,8 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
               </div>
             </Card>
 
-            {/* Collaborators */}
+            {/* Collaborators - solo dal livello Mercante in su */}
+            {features.canCollaborate && (
             <div>
               <h3 className="text-cream-100 font-medium mb-3 flex items-center gap-2">
                 <Users size={18} />
@@ -244,7 +284,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
                 Aggiungi chi ti aiuterà. Dopo la conferma potrai decidere quanto pagarli.
               </p>
               <div className="space-y-2">
-                {otherPlayers.map(player => (
+                {otherPlayers.filter(p => p.id !== forPlayerId).map(player => (
                   <label
                     key={player.id}
                     className={cn(
@@ -278,6 +318,7 @@ export function BookingModal({ isOpen, onClose, selectedDate }: BookingModalProp
                 ))}
               </div>
             </div>
+            )}
 
             {/* Confirm button */}
             <Button

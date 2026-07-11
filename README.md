@@ -24,6 +24,31 @@
 
 ## ✨ Caratteristiche
 
+### 🌱 Livelli di Crescita
+L'interfaccia dei bambini cresce con loro. L'admin imposta il livello di ogni figlio dal pannello **Giocatori**:
+
+| Livello | Età indicativa | Cosa vede |
+|---------|---------------|-----------|
+| 🌱 **Germoglio** | ~4-5 anni | Schermata unica semplificata: salvadanaio, gettoni con bottone gigante "Metti!", negozio a un tocco |
+| 🌿 **Esploratore** | ~6-7 anni | + Calendario attività e vendita alla banca |
+| 🌳 **Mercante** | ~8-10 anni | + Scambi P2P, collaboratori nelle prenotazioni, notizie di mercato |
+| 🚀 **Esperto** | 10+ anni | Esperienza completa: statistiche, supply, spread, tutto il mercato |
+
+I giocatori esistenti partono come **Esperto** (comportamento invariato): abbassa il livello quando serve.
+
+### ⭐ Missioni (per i più piccoli)
+Dal calendario, l'admin può **assegnare un'attività a un figlio** ("Assegna a: 👦 ..."). Il bambino la vede tra "Le mie missioni" con un bottone gigante **✅ Fatto!**; quando la segna fatta, il genitore conferma dal pannello Calendario e il gettone viene emesso automaticamente. Niente paghetta gratis: tutto quello che entra nel salvadanaio è guadagnato.
+
+### 🔒 PIN Genitori
+Pensata per un **dispositivo condiviso** (tablet di casa): dal pannello **Giocatori** imposta un PIN di 4 cifre e i profili genitore lo chiederanno al login. I bambini possono usare solo i loro profili.
+
+### 🧩 Catalogo Modulare
+Attività e premi cambiano negli anni senza toccare il codice:
+
+- **Attività (lavori)**: dal pannello **Gettoni → Controllo Prezzi** puoi aggiungere nuove attività, archiviarle (occhio 👁️) o eliminarle, e impostare da quale livello sono visibili (`🌱 Lv1+`)
+- **Premi (asset)**: dal pannello **Asset** puoi archiviare/riattivare ogni premio e legarlo a un livello minimo
+- Le voci archiviate spariscono da negozio e calendario dei bambini ma restano nello storico
+
 ### 🎫 Sistema Work Tokens
 - **Emissione gettoni** per attività domestiche (apparecchiare, cucinare, studiare, etc.)
 - **Qualità del lavoro** con moltiplicatori (Basic, Good, Excellent, Perfect)
@@ -57,6 +82,7 @@
 - **Report inattività**: applicazione penalità -5 per giocatori inattivi
 
 ### 🧑‍💼 Modalità Trader
+- **UI a livelli**: tab e funzioni compaiono in base al livello di crescita del bambino
 - **Wallet**: visualizzazione balance e holdings con valore portfolio
 - **Trading Grid**: acquisto/vendita asset dalla banca
 - **P2P Modal**: scambi diretti tra giocatori

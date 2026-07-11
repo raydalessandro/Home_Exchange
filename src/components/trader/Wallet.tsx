@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
+import { getFeatures, getPlayerLevel } from '@/lib/levels'
 import { Button } from '@/components/shared/Button'
 import { Card } from '@/components/shared/Card'
 import { 
@@ -40,6 +41,7 @@ export function Wallet() {
 
   if (!currentUser) return null
 
+  const features = getFeatures(getPlayerLevel(currentUser))
   const holdings = Object.entries(currentUser.holdings).filter(([, qty]) => qty > 0)
   const totalNetWorth = currentUser.balance + portfolioValue
 
@@ -126,6 +128,7 @@ export function Wallet() {
       </div>
 
       {/* P2P Trading Button */}
+      {features.canP2P && (
       <Card variant="dark" padding="md">
         <div className="flex items-center gap-2 font-medium text-cream mb-3 text-sm">
           <ArrowLeftRight size={16} className="text-gold" />
@@ -146,6 +149,7 @@ export function Wallet() {
           </p>
         )}
       </Card>
+      )}
     </div>
   )
 }

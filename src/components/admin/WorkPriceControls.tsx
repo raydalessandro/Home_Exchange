@@ -2,19 +2,25 @@
 
 import { useState } from 'react'
 import { useStore } from '@/store'
+import type { PlayerLevel } from '@/types'
+import { ALL_LEVELS, LEVELS } from '@/lib/levels'
 import { Card, CardHeader } from '@/components/shared/Card'
 import { Button } from '@/components/shared/Button'
 import { cn } from '@/lib/cn'
-import { 
-  Briefcase, 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  Briefcase,
+  TrendingUp,
+  TrendingDown,
   Sliders,
   ChevronDown,
   ChevronRight,
   Edit3,
   Check,
-  X
+  X,
+  Eye,
+  EyeOff,
+  Plus,
+  Trash2
 } from 'lucide-react'
 
 export function WorkPriceControls() {
@@ -22,10 +28,31 @@ export function WorkPriceControls() {
   const setTemplatePrice = useStore(state => state.setTemplatePrice)
   const setCategoryMultiplier = useStore(state => state.setCategoryMultiplier)
   const triggerWorkMarketEvent = useStore(state => state.triggerWorkMarketEvent)
-  
+  const setTemplateAvailability = useStore(state => state.setTemplateAvailability)
+  const addWorkTemplate = useStore(state => state.addWorkTemplate)
+  const removeWorkTemplate = useStore(state => state.removeWorkTemplate)
+
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<{ catId: string; tplId: string } | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [newTemplate, setNewTemplate] = useState({ name: '', emoji: '', value: '', minLevel: 1 as PlayerLevel })
+
+  const cycleMinLevel = (catId: string, tplId: string, current: PlayerLevel) => {
+    const next = (current >= 4 ? 1 : current + 1) as PlayerLevel
+    setTemplateAvailability(catId, tplId, { minLevel: next })
+  }
+
+  const handleAddTemplate = (categoryId: string) => {
+    const value = parseInt(newTemplate.value)
+    if (!newTemplate.name.trim() || !(value > 0)) return
+    addWorkTemplate(categoryId, {
+      name: newTemplate.name,
+      emoji: newTemplate.emoji,
+      baseValue: value,
+      minLevel: newTemplate.minLevel,
+    })
+    setNewTemplate({ name: '', emoji: '', value: '', minLevel: 1 })
+  }
 
   const handleStartEdit = (catId: string, tplId: string, currentValue: number) => {
     setEditingTemplate({ catId, tplId })
@@ -164,19 +191,27 @@ export function WorkPriceControls() {
                 {category.templates.map(template => {
                   // Default values for backwards compatibility
                   const currentValue = template.currentValue ?? template.baseValue
-                  const isEditing = editingTemplate?.catId === category.id && 
+                  const isEditing = editingTemplate?.catId === category.id &&
                                    editingTemplate?.tplId === template.id
                   const priceChanged = currentValue !== template.baseValue
-                  
+                  const isActive = template.active ?? true
+                  const minLevel = template.minLevel ?? 1
+
                   return (
                     <div
                       key={template.id}
-                      className="flex items-center justify-between px-4 py-3 border-b border-ink-700/50 last:border-b-0 hover:bg-ink-700/30"
+                      className={cn(
+                        'flex items-center justify-between px-4 py-3 border-b border-ink-700/50 last:border-b-0 hover:bg-ink-700/30',
+                        !isActive && 'opacity-40'
+                      )}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{template.emoji}</span>
                         <div>
-                          <div className="text-sm text-cream-50 font-medium">{template.name}</div>
+                          <div className="text-sm text-cream-50 font-medium">
+                            {template.name}
+                            {!isActive && <span className="ml-2 text-xs text-red-400">(archiviata)</span>}
+                          </div>
                           <div className="text-xs text-cream-200">
                             Base: 🪙{template.baseValue}
                           </div>
@@ -184,6 +219,41 @@ export function WorkPriceControls() {
                       </div>
 
                       <div className="flex items-center gap-3">
+                        {/* Livello minimo: click per cambiare */}
+                        <button
+                          onClick={() => cycleMinLevel(category.id, template.id, minLevel)}
+                          title={`Visibile dal livello ${LEVELS[minLevel].name} in su (click per cambiare)`}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-ink-600 hover:bg-ink-500 text-xs text-cream-100 transition-colors"
+                        >
+                          {LEVELS[minLevel].emoji} Lv{minLevel}+
+                        </button>
+
+                        {/* Attiva/archivia */}
+                        <button
+                          onClick={() => setTemplateAvailability(category.id, template.id, { active: !isActive })}
+                          title={isActive ? 'Archivia (nascondi ai bambini)' : 'Riattiva'}
+                          className={cn(
+                            'w-7 h-7 rounded flex items-center justify-center transition-colors',
+                            isActive
+                              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                              : 'bg-ink-600 text-cream/40 hover:bg-ink-500'
+                          )}
+                        >
+                          {isActive ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+
+                        {/* Elimina */}
+                        <button
+                          onClick={() => {
+                            if (confirm(`Eliminare "${template.name}" definitivamente? (Per nasconderla temporaneamente usa l'occhio)`)) {
+                              removeWorkTemplate(category.id, template.id)
+                            }
+                          }}
+                          title="Elimina definitivamente"
+                          className="w-7 h-7 rounded bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                         {isEditing ? (
                           <div className="flex items-center gap-2">
                             <input
@@ -242,6 +312,50 @@ export function WorkPriceControls() {
                     </div>
                   )
                 })}
+
+                {/* Aggiungi nuova attività */}
+                <div className="px-4 py-3 bg-ink-800/50 flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={newTemplate.emoji}
+                    onChange={e => setNewTemplate(f => ({ ...f, emoji: e.target.value }))}
+                    placeholder="😀"
+                    className="w-12 px-2 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-cream text-sm text-center focus:border-gold focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={newTemplate.name}
+                    onChange={e => setNewTemplate(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Nuova attività..."
+                    className="flex-1 min-w-[120px] px-3 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-cream text-sm focus:border-gold focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    value={newTemplate.value}
+                    onChange={e => setNewTemplate(f => ({ ...f, value: e.target.value }))}
+                    placeholder="🪙"
+                    min="1"
+                    className="w-16 px-2 py-1.5 bg-ink-700 border border-ink-600 rounded-lg text-cream text-sm font-mono text-center focus:border-gold focus:outline-none"
+                  />
+                  <button
+                    onClick={() => setNewTemplate(f => ({
+                      ...f,
+                      minLevel: (f.minLevel >= 4 ? 1 : f.minLevel + 1) as PlayerLevel,
+                    }))}
+                    title={`Visibile dal livello ${LEVELS[newTemplate.minLevel].name} in su`}
+                    className="px-2 py-1.5 rounded-lg bg-ink-600 hover:bg-ink-500 text-xs text-cream-100 transition-colors"
+                  >
+                    {LEVELS[newTemplate.minLevel].emoji} Lv{newTemplate.minLevel}+
+                  </button>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => handleAddTemplate(category.id)}
+                    icon={Plus}
+                  >
+                    Aggiungi
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -258,6 +372,8 @@ export function WorkPriceControls() {
             <li>• Puoi anche modificare il <strong className="text-cream-50">prezzo singolo</strong> di ogni template</li>
             <li>• Gli <strong className="text-cream-50">eventi mercato</strong> applicano variazioni globali (+20% o -20%)</li>
             <li>• Abbassare i prezzi = meno inflazione (meno moneta emessa per lavoro)</li>
+            <li>• <strong className="text-cream-50">🌱 Lv+</strong> imposta da quale livello di crescita l&apos;attività è visibile</li>
+            <li>• L&apos;<strong className="text-cream-50">occhio</strong> archivia un&apos;attività senza cancellarla: utile quando i bambini crescono e le attività cambiano</li>
           </ul>
         </div>
       </Card>
