@@ -1,13 +1,67 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '@/store'
 import type { Player } from '@/types'
 import { ALL_LEVELS, LEVELS, getPlayerLevel } from '@/lib/levels'
 import { Card, CardHeader } from '@/components/shared/Card'
 import { Button } from '@/components/shared/Button'
 import { cn } from '@/lib/cn'
-import { Users, Plus, Minus, Wallet, Package, Coins, Crown } from 'lucide-react'
+import { Users, Plus, Minus, Wallet, Package, Coins, Crown, Lock, Unlock } from 'lucide-react'
+
+function AdminPinCard() {
+  const adminPin = useStore(state => state.adminPin)
+  const setAdminPin = useStore(state => state.setAdminPin)
+  const [pinInput, setPinInput] = useState('')
+
+  const handleSetPin = () => {
+    if (/^\d{4}$/.test(pinInput)) {
+      setAdminPin(pinInput)
+      setPinInput('')
+    }
+  }
+
+  return (
+    <Card variant="dark" className="border border-amber-500/40 bg-ink-800">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <div className="font-semibold text-amber-400 mb-1 flex items-center gap-2">
+            {adminPin ? <Lock size={16} /> : <Unlock size={16} />}
+            PIN Genitori
+          </div>
+          <p className="text-cream-100 text-sm">
+            {adminPin
+              ? 'PIN attivo: i profili genitore chiedono il PIN al login.'
+              : 'Su un dispositivo condiviso, imposta un PIN di 4 cifre per bloccare i profili genitore.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="password"
+            inputMode="numeric"
+            value={pinInput}
+            onChange={e => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="4 cifre"
+            className="w-24 px-3 py-2 bg-ink-700 border border-ink-600 rounded-xl text-cream text-center font-mono focus:border-gold focus:outline-none"
+          />
+          <Button
+            variant="success"
+            size="sm"
+            onClick={handleSetPin}
+            disabled={!/^\d{4}$/.test(pinInput)}
+          >
+            {adminPin ? 'Cambia' : 'Imposta'}
+          </Button>
+          {adminPin && (
+            <Button variant="danger" size="sm" onClick={() => setAdminPin(null)}>
+              Rimuovi
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
+  )
+}
 
 function PlayerCard({ player }: { player: Player }) {
   const giveMoney = useStore(state => state.giveMoney)
@@ -121,6 +175,9 @@ export function PlayersManagement() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <CardHeader title="Giocatori" icon={<Users size={20} />} />
+
+      {/* PIN genitori per dispositivo condiviso */}
+      <AdminPinCard />
 
       {/* Legenda livelli */}
       <Card variant="dark" className="bg-ink-800 border-sky-500/30">

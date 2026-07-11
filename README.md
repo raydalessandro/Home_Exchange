@@ -36,6 +36,12 @@ L'interfaccia dei bambini cresce con loro. L'admin imposta il livello di ogni fi
 
 I giocatori esistenti partono come **Esperto** (comportamento invariato): abbassa il livello quando serve.
 
+### ⭐ Missioni (per i più piccoli)
+Dal calendario, l'admin può **assegnare un'attività a un figlio** ("Assegna a: 👦 ..."). Il bambino la vede tra "Le mie missioni" con un bottone gigante **✅ Fatto!**; quando la segna fatta, il genitore conferma dal pannello Calendario e il gettone viene emesso automaticamente. Niente paghetta gratis: tutto quello che entra nel salvadanaio è guadagnato.
+
+### 🔒 PIN Genitori
+Pensata per un **dispositivo condiviso** (tablet di casa): dal pannello **Giocatori** imposta un PIN di 4 cifre e i profili genitore lo chiederanno al login. I bambini possono usare solo i loro profili.
+
 ### 🧩 Catalogo Modulare
 Attività e premi cambiano negli anni senza toccare il codice:
 

@@ -174,6 +174,7 @@ export const initialState: Omit<AppState, keyof import('./index').AppActions> = 
   // Auth
   currentUser: null,
   mode: 'trader',
+  adminPin: null,
 
   // Entities
   players: initialPlayers,

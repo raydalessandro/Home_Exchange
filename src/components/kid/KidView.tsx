@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { getPlayerLevel, isAssetVisible } from '@/lib/levels'
+import { formatDateISO, formatDateDisplay } from '@/types/calendar'
 import { cn } from '@/lib/cn'
 
 /**
@@ -15,6 +16,8 @@ export function KidView() {
   const currentUser = useStore(state => state.currentUser)
   const assets = useStore(state => state.assets)
   const workTokens = useStore(useShallow(state => state.workTokens))
+  const bookings = useStore(useShallow(state => state.bookings))
+  const markBookingDone = useStore(state => state.markBookingDone)
   const redeemWorkToken = useStore(state => state.redeemWorkToken)
   const redeemAllTokens = useStore(state => state.redeemAllTokens)
   const executeTrade = useStore(state => state.executeTrade)
@@ -33,6 +36,17 @@ export function KidView() {
     const level = getPlayerLevel(currentUser)
     return Object.values(assets).filter(a => isAssetVisible(a, level))
   }, [assets, currentUser])
+
+  // Missioni: attività assegnate (o prenotate) ancora da fare o in attesa di conferma
+  const missions = useMemo(() => {
+    if (!currentUser) return []
+    return bookings
+      .filter(b =>
+        b.bookedBy === currentUser.id &&
+        (b.status === 'BOOKED' || b.status === 'MARKED_DONE')
+      )
+      .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate))
+  }, [bookings, currentUser])
 
   if (!currentUser) return null
 
@@ -80,6 +94,56 @@ export function KidView() {
           🪙 {currentUser.balance}
         </div>
       </div>
+
+      {/* Le mie missioni */}
+      {missions.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-serif text-xl sm:text-2xl text-gold text-center">
+            ⭐ Le mie missioni
+          </h2>
+          {missions.map(mission => {
+            const today = formatDateISO(new Date())
+            const dateLabel = mission.scheduledDate === today
+              ? 'Oggi'
+              : formatDateDisplay(mission.scheduledDate)
+            const isWaiting = mission.status === 'MARKED_DONE'
+
+            return (
+              <div
+                key={mission.id}
+                className={cn(
+                  'rounded-3xl p-4 sm:p-5 flex items-center gap-4 border-2',
+                  isWaiting
+                    ? 'bg-sky-500/10 border-sky-500/40'
+                    : 'bg-emerald-500/10 border-emerald-500/40'
+                )}
+              >
+                <span className="text-5xl flex-shrink-0">{mission.templateEmoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-ink-800 text-lg font-medium truncate">
+                    {mission.templateName}
+                  </div>
+                  <div className="text-ink-500 text-sm">
+                    {dateLabel} · 🪙 {mission.baseValue}
+                  </div>
+                </div>
+                {isWaiting ? (
+                  <div className="flex-shrink-0 text-center text-sky-600 text-sm font-medium px-3">
+                    ⏳<br />Aspetta<br />mamma o papà
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => markBookingDone(mission.id)}
+                    className="flex-shrink-0 bg-emerald-500 text-white font-bold text-lg rounded-2xl px-5 py-4 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all"
+                  >
+                    ✅ Fatto!
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Gettoni da riscuotere */}
       {unredeemed.length > 0 && (

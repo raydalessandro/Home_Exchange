@@ -208,6 +208,8 @@ export interface AppState {
   // Auth
   currentUser: Player | null
   mode: AppMode
+  // PIN per i profili genitore su dispositivo condiviso (null = nessun PIN)
+  adminPin: string | null
 
   // Entities
   players: Player[]
@@ -249,6 +251,7 @@ export interface AppActions {
   login: (playerId: string) => void
   logout: () => void
   switchMode: (mode: AppMode) => void
+  setAdminPin: (pin: string | null) => void
 
   // Trading
   executeTrade: (payload: TradePayload) => Promise<Result<Trade, TradeError>>
@@ -324,6 +327,8 @@ export interface AppActions {
     scheduledDate: string
     scheduledTime?: string
     collaboratorIds?: string[]
+    // Admin: assegna la missione a un altro giocatore (default: se stesso)
+    forPlayerId?: string
   }) => void
   markBookingDone: (bookingId: string) => void
   confirmBooking: (bookingId: string) => void
@@ -422,18 +427,28 @@ export interface WorkToken {
 }
 
 // Helper per creare template con valori di default
-function createTemplate(id: string, name: string, emoji: string, baseValue: number): WorkTemplate {
+function createTemplate(
+  id: string,
+  name: string,
+  emoji: string,
+  baseValue: number,
+  minLevel: PlayerLevel = 1
+): WorkTemplate {
   return {
     id,
     name,
     emoji,
     baseValue,
     currentValue: baseValue,
+    active: true,
+    minLevel,
     priceHistory: [{ price: baseValue, timestamp: Date.now() }],
   }
 }
 
-// Default work categories
+// Default work categories.
+// minLevel indica da quale livello di crescita l'attività è visibile:
+// 1 = anche i più piccoli (~4-5 anni), 2 = ~6-7, 3 = ~8-10.
 export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
   {
     id: 'PULIZIE',
@@ -441,11 +456,12 @@ export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
     emoji: '🧹',
     priceMultiplier: 1.0,
     templates: [
-      createTemplate('clean_room', 'Pulisce Camera', '🛏️', 15),
-      createTemplate('vacuum', 'Aspirapolvere', '🌪️', 20),
-      createTemplate('sweep', 'Spazza Cucina', '🧹', 10),
-      createTemplate('bathroom', 'Pulisce Bagno', '🚿', 25),
-      createTemplate('tidy_up', 'Riordina Stanza', '🗂️', 12),
+      createTemplate('tidy_toys', 'Mette a Posto i Giochi', '🧸', 8, 1),
+      createTemplate('tidy_up', 'Riordina Stanza', '🗂️', 12, 1),
+      createTemplate('clean_room', 'Pulisce Camera', '🛏️', 15, 2),
+      createTemplate('vacuum', 'Aspirapolvere', '🌪️', 20, 2),
+      createTemplate('sweep', 'Spazza Cucina', '🧹', 10, 2),
+      createTemplate('bathroom', 'Pulisce Bagno', '🚿', 25, 3),
     ],
   },
   {
@@ -454,11 +470,11 @@ export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
     emoji: '🍽️',
     priceMultiplier: 1.0,
     templates: [
-      createTemplate('dishes', 'Lava Piatti', '🍽️', 15),
-      createTemplate('clear_table', 'Sparecchia', '🪑', 8),
-      createTemplate('set_table', 'Apparecchia', '🍴', 8),
-      createTemplate('cook_help', 'Aiuta a Cucinare', '👨‍🍳', 20),
-      createTemplate('grocery', 'Sistema Spesa', '🛒', 15),
+      createTemplate('set_table', 'Apparecchia', '🍴', 8, 1),
+      createTemplate('clear_table', 'Sparecchia', '🪑', 8, 1),
+      createTemplate('dishes', 'Lava Piatti', '🍽️', 15, 2),
+      createTemplate('cook_help', 'Aiuta a Cucinare', '👨‍🍳', 20, 2),
+      createTemplate('grocery', 'Sistema Spesa', '🛒', 15, 2),
     ],
   },
   {
@@ -467,10 +483,10 @@ export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
     emoji: '📚',
     priceMultiplier: 1.0,
     templates: [
-      createTemplate('homework', 'Compiti Completi', '📝', 25),
-      createTemplate('reading', 'Lettura 30min', '📖', 15),
-      createTemplate('practice', 'Esercizi Extra', '✍️', 20),
-      createTemplate('instrument', 'Pratica Strumento', '🎵', 20),
+      createTemplate('reading', 'Lettura Insieme', '📖', 15, 1),
+      createTemplate('homework', 'Compiti Completi', '📝', 25, 2),
+      createTemplate('practice', 'Esercizi Extra', '✍️', 20, 2),
+      createTemplate('instrument', 'Pratica Strumento', '🎵', 20, 2),
     ],
   },
   {
@@ -479,11 +495,12 @@ export const DEFAULT_WORK_CATEGORIES: WorkCategory[] = [
     emoji: '⭐',
     priceMultiplier: 1.0,
     templates: [
-      createTemplate('kind', 'Gentilezza', '💝', 10),
-      createTemplate('help_sibling', 'Aiuta Fratello/Sorella', '🤝', 15),
-      createTemplate('no_screen', 'Giornata No Screen', '📵', 30),
-      createTemplate('early_bed', 'A Letto Presto', '🌙', 10),
-      createTemplate('good_manners', 'Buone Maniere', '🎩', 10),
+      createTemplate('kind', 'Gentilezza', '💝', 10, 1),
+      createTemplate('dress_alone', 'Si Veste da Solo', '👕', 8, 1),
+      createTemplate('early_bed', 'A Letto Presto', '🌙', 10, 1),
+      createTemplate('help_sibling', 'Aiuta Fratello/Sorella', '🤝', 15, 1),
+      createTemplate('good_manners', 'Buone Maniere', '🎩', 10, 1),
+      createTemplate('no_screen', 'Giornata No Screen', '📵', 30, 2),
     ],
   },
 ]

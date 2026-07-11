@@ -72,6 +72,25 @@ export const useStore = create<Store>()(
         })
       },
 
+      setAdminPin: (pin: string | null) => {
+        if (!get().currentUser?.isAdmin) {
+          get().showToast({ message: 'Solo admin può impostare il PIN', type: 'error' })
+          return
+        }
+        if (pin !== null && !/^\d{4}$/.test(pin)) {
+          get().showToast({ message: 'Il PIN deve essere di 4 cifre', type: 'error' })
+          return
+        }
+        set(state => {
+          state.adminPin = pin
+          state.lastUpdated = Date.now()
+        })
+        get().showToast({
+          message: pin ? '🔒 PIN genitori impostato' : '🔓 PIN genitori rimosso',
+          type: 'success',
+        })
+      },
+
       // ==================== TRADING ====================
       executeTrade: async (payload: TradePayload): Promise<Result<Trade, TradeError>> => {
         const { playerId, assetId, quantity, type } = payload
@@ -1208,10 +1227,25 @@ export const useStore = create<Store>()(
       createBooking: (params) => {
         const state = get()
         const currentUser = state.currentUser
-        
+
         if (!currentUser) {
           state.showToast({ message: 'Devi essere loggato', type: 'error' })
           return
+        }
+
+        // Admin può assegnare la missione a un altro giocatore
+        let owner = currentUser
+        if (params.forPlayerId && params.forPlayerId !== currentUser.id) {
+          if (!currentUser.isAdmin) {
+            state.showToast({ message: 'Solo admin può assegnare missioni', type: 'error' })
+            return
+          }
+          const target = state.players.find(p => p.id === params.forPlayerId && !p.isBank)
+          if (!target) {
+            state.showToast({ message: 'Giocatore non trovato', type: 'error' })
+            return
+          }
+          owner = target
         }
 
         // Trova i nomi dei collaboratori
@@ -1227,8 +1261,8 @@ export const useStore = create<Store>()(
           templateName: params.templateName,
           templateEmoji: params.templateEmoji,
           baseValue: params.baseValue,
-          bookedBy: currentUser.id,
-          bookedByName: currentUser.name,
+          bookedBy: owner.id,
+          bookedByName: owner.name,
           scheduledDate: params.scheduledDate,
           scheduledTime: params.scheduledTime,
           status: 'BOOKED' as const,
@@ -1243,17 +1277,23 @@ export const useStore = create<Store>()(
           state.lastUpdated = Date.now()
         })
 
-        const collabText = collaboratorNames.length > 0 
-          ? ` con ${collaboratorNames.join(', ')}` 
+        const collabText = collaboratorNames.length > 0
+          ? ` con ${collaboratorNames.join(', ')}`
           : ''
-        
+
+        const isAssignment = owner.id !== currentUser.id
         get().logEvent(
           'BOOKING_CREATED',
-          `📅 ${currentUser.name} ha prenotato ${params.templateEmoji} ${params.templateName} per ${params.scheduledDate}${collabText}`,
+          isAssignment
+            ? `⭐ ${currentUser.name} ha assegnato ${params.templateEmoji} ${params.templateName} a ${owner.name} per ${params.scheduledDate}${collabText}`
+            : `📅 ${currentUser.name} ha prenotato ${params.templateEmoji} ${params.templateName} per ${params.scheduledDate}${collabText}`,
           { bookingId: booking.id }
         )
-        
-        get().showToast({ message: 'Prenotazione creata!', type: 'success' })
+
+        get().showToast({
+          message: isAssignment ? `Missione assegnata a ${owner.name}!` : 'Prenotazione creata!',
+          type: 'success',
+        })
       },
 
       markBookingDone: (bookingId: string) => {
@@ -1592,6 +1632,7 @@ export const useStore = create<Store>()(
       name: 'casa-exchange-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        adminPin: state.adminPin,
         players: state.players,
         assets: state.assets,
         workTokens: state.workTokens,
