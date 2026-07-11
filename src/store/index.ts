@@ -737,6 +737,57 @@ export const useStore = create<Store>()(
         })
       },
 
+      updatePlayerProfile: (playerId, params) => {
+        const state = get()
+        const player = state.players.find(p => p.id === playerId)
+
+        if (!state.currentUser?.isAdmin) {
+          get().showToast({ message: 'Solo admin può modificare i profili', type: 'error' })
+          return
+        }
+        if (!player || player.isBank) return
+
+        const newName = params.name?.trim()
+        const newEmoji = params.emoji?.trim()
+        if (newName !== undefined && newName.length === 0) {
+          get().showToast({ message: 'Il nome non può essere vuoto', type: 'error' })
+          return
+        }
+
+        const oldName = player.name
+
+        set(state => {
+          const p = state.players.find(pl => pl.id === playerId)
+          if (!p) return
+          if (newName) p.name = newName
+          if (newEmoji) p.emoji = newEmoji
+          p.updatedAt = Date.now()
+
+          if (state.currentUser?.id === playerId) {
+            state.currentUser = p
+          }
+
+          // Aggiorna i nomi denormalizzati nelle prenotazioni
+          if (newName) {
+            state.bookings.forEach(b => {
+              if (b.bookedBy === playerId) b.bookedByName = newName
+              b.collaborators.forEach((collabId, i) => {
+                if (collabId === playerId) b.collaboratorNames[i] = newName
+              })
+            })
+          }
+          state.lastUpdated = Date.now()
+        })
+
+        const updated = get().players.find(p => p.id === playerId)!
+        get().logEvent(
+          'ANNOUNCEMENT',
+          `✏️ Profilo aggiornato: ${oldName} → ${updated.emoji} ${updated.name}`,
+          { playerId }
+        )
+        get().showToast({ message: `Profilo di ${updated.name} aggiornato`, type: 'success' })
+      },
+
       // ==================== ADMIN - MARKET ====================
       triggerMarketEvent: (eventType: MarketEventType) => {
         const multipliers: Record<MarketEventType, number> = {

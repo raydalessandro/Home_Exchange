@@ -277,6 +277,7 @@ export interface AppActions {
   giveMoney: (playerId: string, amount: number) => void
   takeMoney: (playerId: string, amount: number) => void
   setPlayerLevel: (playerId: string, level: PlayerLevel) => void
+  updatePlayerProfile: (playerId: string, params: { name?: string; emoji?: string }) => void
 
   // Admin - Market
   triggerMarketEvent: (event: MarketEventType) => void

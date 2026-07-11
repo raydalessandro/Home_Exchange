@@ -7,7 +7,7 @@ import { ALL_LEVELS, LEVELS, getPlayerLevel } from '@/lib/levels'
 import { Card, CardHeader } from '@/components/shared/Card'
 import { Button } from '@/components/shared/Button'
 import { cn } from '@/lib/cn'
-import { Users, Plus, Minus, Wallet, Package, Coins, Crown, Lock, Unlock } from 'lucide-react'
+import { Users, Plus, Minus, Wallet, Package, Coins, Crown, Lock, Unlock, Pencil, Check, X } from 'lucide-react'
 
 function AdminPinCard() {
   const adminPin = useStore(state => state.adminPin)
@@ -67,8 +67,25 @@ function PlayerCard({ player }: { player: Player }) {
   const giveMoney = useStore(state => state.giveMoney)
   const takeMoney = useStore(state => state.takeMoney)
   const setPlayerLevel = useStore(state => state.setPlayerLevel)
+  const updatePlayerProfile = useStore(state => state.updatePlayerProfile)
   const assets = useStore(state => state.assets)
   const allPlayers = useStore(state => state.players)
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState(player.name)
+  const [editEmoji, setEditEmoji] = useState(player.emoji)
+
+  const handleStartEdit = () => {
+    setEditName(player.name)
+    setEditEmoji(player.emoji)
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = () => {
+    if (!editName.trim()) return
+    updatePlayerProfile(player.id, { name: editName, emoji: editEmoji })
+    setIsEditing(false)
+  }
 
   const portfolioValue = useMemo(() => {
     const p = allPlayers.find(pl => pl.id === player.id)
@@ -83,20 +100,68 @@ function PlayerCard({ player }: { player: Player }) {
 
   return (
     <div className="p-3 sm:p-4 bg-ink-700/50 rounded-xl border border-ink-600">
-      <div className="flex items-center justify-between mb-2 sm:mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl sm:text-2xl">{player.emoji}</span>
-          <span className="font-medium text-cream text-sm sm:text-base">{player.name}</span>
-        </div>
-        {player.isAdmin ? (
-          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gold/20 text-gold">
-            <Crown size={12} />
-            Admin
-          </span>
+      <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
+        {isEditing ? (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <input
+              type="text"
+              value={editEmoji}
+              onChange={e => setEditEmoji(e.target.value)}
+              placeholder="😀"
+              className="w-12 px-1 py-1.5 bg-ink-800 border border-ink-600 rounded-lg text-center text-lg focus:border-gold focus:outline-none"
+            />
+            <input
+              type="text"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              placeholder="Nome"
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSaveEdit()
+                if (e.key === 'Escape') setIsEditing(false)
+              }}
+              className="flex-1 min-w-0 px-2 py-1.5 bg-ink-800 border border-ink-600 rounded-lg text-cream text-sm focus:border-gold focus:outline-none"
+            />
+            <button
+              onClick={handleSaveEdit}
+              disabled={!editName.trim()}
+              className="w-7 h-7 flex-shrink-0 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 flex items-center justify-center"
+              aria-label="Salva"
+            >
+              <Check size={14} />
+            </button>
+            <button
+              onClick={() => setIsEditing(false)}
+              className="w-7 h-7 flex-shrink-0 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 flex items-center justify-center"
+              aria-label="Annulla"
+            >
+              <X size={14} />
+            </button>
+          </div>
         ) : (
-          <span className="text-xs text-cream/50">
-            {LEVELS[currentLevel].emoji} {LEVELS[currentLevel].name}
-          </span>
+          <>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xl sm:text-2xl">{player.emoji}</span>
+              <span className="font-medium text-cream text-sm sm:text-base truncate">{player.name}</span>
+              <button
+                onClick={handleStartEdit}
+                title="Modifica nome ed emoji"
+                className="w-6 h-6 flex-shrink-0 rounded bg-ink-600 hover:bg-ink-500 flex items-center justify-center text-cream/60 hover:text-cream transition-colors"
+              >
+                <Pencil size={12} />
+              </button>
+            </div>
+            {player.isAdmin ? (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gold/20 text-gold flex-shrink-0">
+                <Crown size={12} />
+                Admin
+              </span>
+            ) : (
+              <span className="text-xs text-cream/50 flex-shrink-0">
+                {LEVELS[currentLevel].emoji} {LEVELS[currentLevel].name}
+              </span>
+            )}
+          </>
         )}
       </div>
 
